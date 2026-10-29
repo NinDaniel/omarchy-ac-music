@@ -42,6 +42,7 @@ Item {
 
   // ---- What should be playing ----
   property int salt: 0
+  property int slot: 0
   readonly property bool playing: config.playing
   // Other media players (MPRIS) can hold us: paused or quieter until they stop.
   property bool otherMediaHold: false
@@ -51,7 +52,7 @@ Item {
   // Actually making sound: the user wants music and nothing is holding it.
   readonly property bool audible: playing && !heldPaused
   readonly property bool kkActive: Model.isKKTime(config, now)
-  readonly property string game: Model.pickGame(config, day, hour, salt)
+  readonly property string game: Model.pickGame(config, day, hour, salt, slot)
   readonly property string trackWeather: Model.trackWeather(game, weather)
   // Changing this string is what triggers a track change. Waiting for the
   // first weather answer (briefly) avoids playing sunny music for a second
@@ -247,7 +248,13 @@ Item {
         root.salt = 0
         root.now = d
       }
+      root.syncSlot(d)
     }
+  }
+
+  function syncSlot(date) {
+    var s = Model.shuffleSlot(config, date)
+    if (s !== slot) slot = s
   }
 
   // ---- Playback ----------------------------------------------------------
@@ -255,6 +262,7 @@ Item {
   onTrackKeyChanged: if (trackKey !== "") Qt.callLater(syncTrack)
   onAudibleChanged: syncPause()
   onConfigChanged: {
+    syncSlot(new Date())
     syncVolume()
     syncOtherMediaMode()
   }

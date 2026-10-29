@@ -14,7 +14,7 @@ Nothing is downloaded to your machine; tracks stream on demand.
 - **Four games:** Animal Crossing (GameCube), Wild World / City Folk, New Leaf, New Horizons, or **Random**.
 - **Real weather:** *Auto* plays the rain and snow versions when it's raining or snowing where you are. You can also lock it to Sunny, Rain, or Snow.
 - **Per-hour picks:** a 24-hour grid in Settings controls which games Random can choose for each hour. Don't like New Leaf's 11 AM theme? Untick it.
-- **Random every hour, or one game per day.**
+- **Random every hour, once a day, or every few minutes:** shuffle between games' versions of the current hour's song every 10, 15, or 30 minutes, or any interval you like.
 - **K.K. Slider:** Saturday night concerts from 8 PM until midnight, or K.K. all the time. Choose live, aircheck, or both versions.
 - **Seamless loops:** songs loop at the game's loop points instead of restarting the intro.
 - **Steps aside for other media:** when YouTube Music, Spotify, a video, or any other media player starts, the music pauses (or drops its volume) and comes back on its own a few seconds after that stops.

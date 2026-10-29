@@ -48,7 +48,9 @@ function defaultConfig() {
     volume: 0.5,
     game: "new-horizons",
     weather: "auto",
+    // "hourly", "daily", or "interval" (a new game every shuffleMinutes).
     randomMode: "hourly",
+    shuffleMinutes: 15,
     hours: allHours(),
     kk: { saturday: true, always: false, version: "live" },
     fade: true,
@@ -75,6 +77,7 @@ function normalizeConfig(raw) {
   var c = raw && typeof raw === "object" ? raw : {}
   var kk = c.kk && typeof c.kk === "object" ? c.kk : {}
   var volume = Number(c.volume)
+  var minutes = Math.round(Number(c.shuffleMinutes))
 
   var hours = {}
   for (var h = 0; h < 24; h++) {
@@ -88,7 +91,8 @@ function normalizeConfig(raw) {
     volume: isNaN(volume) ? d.volume : Math.max(0, Math.min(1, volume)),
     game: pick(c.game, GAME_IDS.concat(["random"]), d.game),
     weather: pick(c.weather, ["auto"].concat(WEATHERS), d.weather),
-    randomMode: pick(c.randomMode, ["hourly", "daily"], d.randomMode),
+    randomMode: pick(c.randomMode, ["hourly", "daily", "interval"], d.randomMode),
+    shuffleMinutes: isNaN(minutes) ? d.shuffleMinutes : Math.max(1, Math.min(60, minutes)),
     hours: hours,
     kk: {
       saturday: bool(kk.saturday, d.kk.saturday),
@@ -127,9 +131,34 @@ function allowedGames(config, hour) {
   return list.length > 0 ? list : GAME_IDS.slice()
 }
 
-function pickGame(config, day, hour, salt) {
+// Which shuffle slot of the hour a time falls in (always 0 unless Random is
+// switching games every few minutes).
+function shuffleSlot(config, date) {
+  if (config.game !== "random" || config.randomMode !== "interval") return 0
+  return Math.floor(date.getMinutes() / config.shuffleMinutes)
+}
+
+// Deterministic shuffle of `list`, seeded by a string.
+function shuffled(list, seed) {
+  var out = list.slice()
+  var h = hash(seed)
+  for (var i = out.length - 1; i > 0; i--) {
+    h = hash(seed + "|" + h)
+    var j = h % (i + 1)
+    var tmp = out[i]; out[i] = out[j]; out[j] = tmp
+  }
+  return out
+}
+
+function pickGame(config, day, hour, salt, slot) {
   if (config.game !== "random") return config.game
   var allowed = allowedGames(config, hour)
+  if (config.randomMode === "interval") {
+    // Walk a per-hour shuffled order: every switch lands on a different game
+    // and all allowed games come up before any repeats.
+    var order = shuffled(allowed, day + "|" + hour + "|" + salt)
+    return order[(slot || 0) % order.length]
+  }
   if (config.randomMode === "daily") {
     var daily = GAME_IDS[hash(day + "|" + salt) % GAME_IDS.length]
     if (allowed.indexOf(daily) >= 0) return daily

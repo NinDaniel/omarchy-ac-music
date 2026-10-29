@@ -33,6 +33,10 @@ Panel {
 
   // "main" or "settings"
   property string view: "main"
+  // Custom shuffle interval picked (shows the minutes field even when the
+  // value happens to match a preset).
+  property bool customShuffle: false
+  readonly property var shufflePresets: [10, 15, 30]
 
   readonly property string iconSun: String.fromCodePoint(0xF0599)
   readonly property string iconRain: String.fromCodePoint(0xF0597)
@@ -355,10 +359,52 @@ Panel {
             fontFamily: root.fontFamily
             focusable: false
             options: [
-              { value: "hourly", label: "New game every hour" },
-              { value: "daily", label: "One game per day" }
+              { value: "hourly", label: "Every hour" },
+              { value: "daily", label: "Once a day" },
+              { value: "interval", label: "Every few minutes", tooltip: "Switch to a different game's version of this hour's song" }
             ]
             onChanged: function(v) { if (root.svc) root.svc.update({ randomMode: v }) }
+          }
+
+          ButtonGroup {
+            visible: root.view === "settings" && root.cfg.randomMode === "interval"
+            spacing: Style.space(6)
+            value: root.customShuffle || root.shufflePresets.indexOf(root.cfg.shuffleMinutes) < 0 ? "custom" : String(root.cfg.shuffleMinutes)
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            focusable: false
+            options: root.shufflePresets.map(function(m) { return { value: String(m), label: m + " min" } })
+              .concat([{ value: "custom", label: "Custom" }])
+            onChanged: function(v) {
+              if (v === "custom") {
+                root.customShuffle = true
+                return
+              }
+              root.customShuffle = false
+              if (root.svc) root.svc.update({ shuffleMinutes: parseInt(v, 10) })
+            }
+          }
+
+          NumberField {
+            visible: root.view === "settings" && root.cfg.randomMode === "interval"
+              && (root.customShuffle || root.shufflePresets.indexOf(root.cfg.shuffleMinutes) < 0)
+            label: "Minutes between switches"
+            from: 1
+            to: 60
+            value: root.cfg.shuffleMinutes
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            onModified: function(v) { if (root.svc) root.svc.update({ shuffleMinutes: v }) }
+          }
+
+          Text {
+            visible: root.view === "settings" && root.cfg.randomMode === "interval" && root.cfg.game !== "random"
+            width: parent.width
+            text: "Switches only happen while the game is set to Random."
+            color: root.dim
+            wrapMode: Text.WordWrap
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
           }
 
           PanelSectionHeader { visible: root.view === "settings"; text: "K.K. SLIDER"; foreground: root.foreground; fontFamily: root.fontFamily }
