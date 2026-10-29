@@ -241,6 +241,9 @@ Item {
       return decodeURIComponent(url.indexOf("file://") === 0 ? url.substring(7) : url)
     }
     printErrors: false
+    // Watched, so an update shows its new version without a restart.
+    watchChanges: true
+    onFileChanged: reload()
     onLoaded: {
       try { root.version = JSON.parse(text()).version || "" } catch (e) {}
     }

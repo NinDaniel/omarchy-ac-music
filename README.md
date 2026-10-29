@@ -180,9 +180,6 @@ greyed out and simply shows your **Sunny** ticks, which is what decides it.
 Untick GameCube's sunny 11 AM and it won't play at 11 AM on rainy days either.
 (GameCube does have snow music, so its Snow column works normally.)
 
-If you're upgrading from an earlier version, your old single grid becomes the
-starting grid for all three weathers, so nothing changes until you edit one.
-
 #### Random picks
 
 How often Random chooses. The line under the buttons explains the selected option.
@@ -218,7 +215,7 @@ K.K. takes over on a schedule, like his Saturday night shows in the games.
 - **Concerts** switches the schedule on or off. Its description spells out the current schedule, for example *Fri, Sat, 9 PM to 1 AM (next day)*.
 - **Days:** tap `Su` through `Sa` to choose which days have a concert.
 - **From / to:** the start and end hour. An end at or before the start runs **past midnight** into the next morning, and the end dropdown labels those hours *(next day)*. So a Friday concert from 9 PM to 1 AM keeps going until 1 AM on Saturday.
-- Out of the box it's **Saturdays, 8 PM to midnight**, like in the games. If you're upgrading, your old "Saturday night concerts" switch carries over.
+- Out of the box it's **Saturdays, 8 PM to midnight**, like in the games.
 
 **K.K. all the time** plays K.K. instead of the hourly music around the clock.
 
@@ -267,8 +264,7 @@ How it works:
 - If nothing is ticked at all, K.K. plays from every song rather than going silent.
 
 Out of the box every song's **live** version is ticked and its aircheck isn't,
-matching the old default. If you're upgrading, your old Live / Aircheck / Both
-choice and any songs you'd unticked carry over.
+like K.K.'s shows in the games.
 
 Wherever K.K. plays, songs play through once and the next starts automatically.
 They're drawn from your ticked songs and won't repeat until 20 others have
@@ -445,8 +441,7 @@ For example, to keep New Leaf out of sunny 11 AMs but keep it on rainy ones
 }
 ```
 
-Song names for `kk.off` are listed in `Data.js`. Older configs (with
-`kk.saturday`, `kk.version`, and `kk.skip`) are converted automatically.
+Song names for `kk.off` are listed in `Data.js`.
 
 ## Updating and uninstalling
 
@@ -511,7 +506,7 @@ There's no account, no analytics, and nothing is sent anywhere else.
 ## Development
 
 The plugin is plain QML plus two JavaScript libraries: `Model.js` (all the
-rules: picking games, schedules, migration) and `Data.js` (loop points and the
+rules: picking games, schedules, settings) and `Data.js` (loop points and the
 K.K. song list). The rules are covered by tests that run in plain Node, with no
 Quickshell needed:
 
