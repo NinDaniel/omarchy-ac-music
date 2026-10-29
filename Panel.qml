@@ -167,10 +167,44 @@ Panel {
             foreground: root.foreground
             fontFamily: root.fontFamily
             iconOpacity: root.audible ? 1.0 : 0.5
+            // K.K.'s album cover while he's playing; the leaf otherwise (or
+            // if the cover can't load).
             iconComponent: Component {
-              LeafIcon {
-                iconSize: Style.font.display * 1.3
-                color: root.accent
+              Item {
+                readonly property bool showArt: cover.status === Image.Ready && cover.source != ""
+                implicitWidth: showArt ? cover.width : leaf.width
+                implicitHeight: showArt ? cover.height : leaf.height
+
+                LeafIcon {
+                  id: leaf
+                  anchors.centerIn: parent
+                  visible: !parent.showArt
+                  iconSize: Style.font.display * 1.3
+                  color: root.accent
+                }
+
+                Image {
+                  id: cover
+                  anchors.centerIn: parent
+                  visible: parent.showArt
+                  width: Style.space(52)
+                  height: width
+                  source: root.svc ? Model.kkArtUrl(root.svc.artSong) : ""
+                  sourceSize.width: 128
+                  sourceSize.height: 128
+                  asynchronous: true
+                  smooth: true
+                  fillMode: Image.PreserveAspectCrop
+                }
+
+                Rectangle {
+                  anchors.fill: cover
+                  visible: parent.showArt
+                  color: "transparent"
+                  radius: Math.min(4, Style.cornerRadius)
+                  border.width: 1
+                  border.color: Qt.darker(root.foreground, 2.2)
+                }
               }
             }
             trailingControl: Component {

@@ -89,7 +89,7 @@ The leaf is dimmed while the music is paused, on hold, or turned down.
 
 From top to bottom:
 
-- **Now playing:** the game (or *K.K. Slider*) with the hour and weather underneath, or the song title and version during K.K. The switch on the right plays and pauses. A **Paused** or **On hold** tag shows when the music isn't playing.
+- **Now playing:** the game (or *K.K. Slider*) with the hour and weather underneath, or the song title and version during K.K. The switch on the right plays and pauses. A **Paused** or **On hold** tag shows when the music isn't playing. While K.K. is playing (a concert, a K.K. hour, a between-hours song, or a preview), the leaf here becomes the song's **album cover**. The leaf in your bar never changes.
 - **Volume:** the slider sets the plugin's own volume, separate from your system volume.
 - **Game:** **GC** (Animal Crossing on GameCube), **WW** (Wild World / City Folk), **NL** (New Leaf), **NH** (New Horizons), or **Random**. Hover a button for the full name. Picking a specific game always plays that game; the per-hour grid only applies to Random.
 - **Weather:** **Auto** follows the real weather. **Sunny**, **Rain**, and **Snow** lock it. On Auto, the line underneath shows the current conditions and where they're from.
@@ -425,7 +425,8 @@ The plugin talks to three services:
 - **acmusicext.com:** the music itself. One song (usually 3 to 7 MB) per track
   change: once an hour normally, at every switch in *Every few minutes* mode,
   once per song whenever K.K. plays (concerts, K.K. hours, between-hours songs),
-  and once per preview. Loops replay from memory and don't download again.
+  and once per preview, plus a small album cover (about 20 KB) for each K.K.
+  song shown in the panel. Loops replay from memory and don't download again.
 - **api.open-meteo.com:** current weather for your coordinates, every 20 minutes,
   only while Weather is on *Auto*.
 - **wttr.in:** only when Omarchy's weather widget has no location set, to work

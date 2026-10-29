@@ -78,6 +78,8 @@ Item {
   // K.K. song being previewed from Settings (plays over whatever was on).
   property string previewSong: ""
   property string previewVersion: ""
+  // K.K. song whose cover the panel shows (empty when no K.K. is playing).
+  readonly property string artSong: previewSong || (kkActive || betweenActive ? kkSong : "")
   property string version: ""
   // View the next panel opening should land on ("settings" from the CLI).
   property string requestedView: ""

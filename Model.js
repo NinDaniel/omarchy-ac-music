@@ -443,6 +443,11 @@ function kkUrl(version, song) {
   return BASE_URL + "/kk/" + version + "/" + encodeURIComponent(song) + ".ogg"
 }
 
+// Album cover for a K.K. song (128x128 PNG).
+function kkArtUrl(song) {
+  return song ? BASE_URL + "/kk/art/" + encodeURIComponent(song) + ".png" : ""
+}
+
 // "NH - Drivin'" -> "Drivin'"
 function kkTitle(song) {
   var i = song.indexOf(" - ")
