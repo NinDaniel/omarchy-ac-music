@@ -17,7 +17,7 @@ Column {
   readonly property var counts: Model.kkCounts(cfg, Data.kkSongs)
   readonly property real columnWidth: Style.space(46)
   // Keeps the version columns clear of the panel's scroll bar.
-  readonly property real rightInset: Style.space(16)
+  readonly property real rightInset: Style.space(28)
 
   function matches(song) {
     var q = query.trim().toLowerCase()
