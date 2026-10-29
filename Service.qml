@@ -52,7 +52,7 @@ Item {
   // Actually making sound: the user wants music and nothing is holding it.
   readonly property bool audible: playing && !heldPaused
   readonly property bool kkActive: Model.isKKTime(config, now)
-  readonly property string game: Model.pickGame(config, day, hour, salt, slot)
+  readonly property string game: Model.pickGame(config, day, hour, salt, slot, weather)
   readonly property string trackWeather: Model.trackWeather(game, weather)
   // Changing this string is what triggers a track change. Waiting for the
   // first weather answer (briefly) avoids playing sunny music for a second
@@ -65,10 +65,14 @@ Item {
   property string kkVersionPlaying: ""
   property var recentKK: []
   property string lastError: ""
+  // K.K. song being previewed from Settings (plays over whatever was on).
+  property string previewSong: ""
+  property string version: ""
   // View the next panel opening should land on ("settings" from the CLI).
   property string requestedView: ""
-  readonly property string title: kkActive ? "K.K. Slider" : Model.gameName(game)
+  readonly property string title: previewSong ? "K.K. Slider preview" : (kkActive ? "K.K. Slider" : Model.gameName(game))
   readonly property string subtitle: {
+    if (previewSong) return Model.kkTitle(previewSong) + " · " + (kkVersionPlaying === "aircheck" ? "Aircheck" : "Live")
     if (kkActive) return kkSong ? Model.kkTitle(kkSong) + " · " + (kkVersionPlaying === "aircheck" ? "Aircheck" : "Live") : "K.K. Slider"
     return Model.hourLabel(hour) + " · " + Model.weatherName(weather)
   }
@@ -108,23 +112,29 @@ Item {
   function setVolume(v) { update({ volume: Math.round(Math.max(0, Math.min(1, v)) * 100) / 100 }) }
   function nudgeVolume(delta) { setVolume(config.volume + delta) }
 
-  function setHourGame(hour, gameId, on) {
+  // Tick or clear a set of hours for one or more games in one weather's grid.
+  function setHoursGames(weatherId, hourList, gameIds, on) {
     var hours = Model.clone(config.hours)
-    var list = hours[String(hour)].filter(function(id) { return id !== gameId })
-    if (on) list.push(gameId)
-    hours[String(hour)] = list
+    var grid = hours[weatherId]
+    hourList.forEach(function(h) {
+      var list = grid[String(h)].filter(function(id) { return gameIds.indexOf(id) < 0 })
+      if (on) list = list.concat(gameIds)
+      grid[String(h)] = list
+    })
     update({ hours: hours })
   }
 
-  // Tick or clear a whole set of hours for one or more games at once.
-  function setHoursGames(hourList, gameIds, on) {
+  function copyGridToAll(weatherId) {
     var hours = Model.clone(config.hours)
-    hourList.forEach(function(h) {
-      var list = hours[String(h)].filter(function(id) { return gameIds.indexOf(id) < 0 })
-      if (on) list = list.concat(gameIds)
-      hours[String(h)] = list
-    })
+    Model.WEATHERS.forEach(function(w) { hours[w] = Model.clone(hours[weatherId]) })
     update({ hours: hours })
+  }
+
+  // Tick (on) or untick K.K. songs; unticked songs are stored in kk.skip.
+  function setKKSongs(songs, on) {
+    var skip = config.kk.skip.filter(function(s) { return songs.indexOf(s) < 0 })
+    if (!on) skip = skip.concat(songs)
+    setKK({ skip: skip })
   }
 
   // Random: roll a different game for this hour. K.K.: skip to the next song.
@@ -150,6 +160,19 @@ Item {
       root.config = Model.defaultConfig()
       root.configLoaded = true
       setText(JSON.stringify(root.config, null, 2) + "\n")
+    }
+  }
+
+  // ---- Version (shown on the About page) ---------------------------------
+
+  FileView {
+    path: {
+      var url = String(Qt.resolvedUrl("manifest.json"))
+      return decodeURIComponent(url.indexOf("file://") === 0 ? url.substring(7) : url)
+    }
+    printErrors: false
+    onLoaded: {
+      try { root.version = JSON.parse(text()).version || "" } catch (e) {}
     }
   }
 
@@ -324,6 +347,7 @@ Item {
   }
 
   function loadCurrent() {
+    previewSong = ""
     lastError = ""
     loadedKey = trackKey
     if (kkActive) {
@@ -340,11 +364,14 @@ Item {
     notifyTrack(Model.gameName(game), Model.hourLabel(hour) + " · " + Model.weatherName(trackWeather))
   }
 
+  function kkVersionFor() {
+    return config.kk.version === "both" ? (Math.random() < 0.5 ? "live" : "aircheck") : config.kk.version
+  }
+
   function playNextKK() {
-    var songs = Data.kkSongs
-    var fresh = songs.filter(function(s) { return recentKK.indexOf(s) < 0 })
-    var song = fresh[Math.floor(Math.random() * fresh.length)]
-    var version = config.kk.version === "both" ? (Math.random() < 0.5 ? "live" : "aircheck") : config.kk.version
+    var song = Model.pickKKSong(Model.kkAllowed(config, Data.kkSongs), recentKK)
+    var version = kkVersionFor()
+    previewSong = ""
     recentKK = recentKK.concat([song]).slice(-20)
     kkSong = song
     kkVersionPlaying = version
@@ -366,12 +393,43 @@ Item {
     Quickshell.execDetached(["notify-send", "-a", "AC Music", "-i", "audio-x-generic", summary, body])
   }
 
+  // Play one K.K. song right now, from the song picker. When it ends (or is
+  // stopped) the scheduled music picks back up.
+  function playPreview(song) {
+    if (previewSong === song) {
+      stopPreview()
+      return
+    }
+    ensureMpv()
+    fadeOut.stop()
+    var version = kkVersionFor()
+    previewSong = song
+    kkVersionPlaying = version
+    loadedKey = "preview"
+    send(["loadfile", Model.kkUrl(version, song), "replace", -1, "loop-file=no,ab-loop-a=no,ab-loop-b=no"])
+    send(["set_property", "pause", false])
+    restoreVolume()
+  }
+
+  function stopPreview() {
+    if (!previewSong) return
+    previewSong = ""
+    loadedKey = ""
+    if (audible) syncTrack()
+    else send(["stop"])
+  }
+
   function handleMpvLine(line) {
     var msg
     try { msg = JSON.parse(line) } catch (e) { return }
     if (msg.event !== "end-file") return
-    if (msg.reason === "eof" && kkActive && loadedKey === trackKey) {
+    if (msg.reason === "eof" && loadedKey === "preview") {
+      stopPreview()
+    } else if (msg.reason === "eof" && kkActive && loadedKey === trackKey) {
       playNextKK()
+    } else if (msg.reason === "error" && loadedKey === "preview") {
+      stopPreview()
+      lastError = "Couldn't play that preview"
     } else if (msg.reason === "error") {
       lastError = "Couldn't reach the music server"
       retryTimer.restart()

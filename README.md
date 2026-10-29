@@ -10,6 +10,10 @@ nights.
 
 Nothing is stored on your machine. Tracks stream on demand.
 
+> Inspired by, and streaming its music from, the
+> [Animal Crossing Music extension](https://github.com/animal-crossing-music-extension/ac-music-extension).
+> Full credits are [at the bottom](#credits).
+
 ![The panel and its settings](preview.png)
 
 ## Contents
@@ -19,13 +23,10 @@ Nothing is stored on your machine. Tracks stream on demand.
 - [The bar icon](#the-bar-icon)
 - [The panel](#the-panel)
 - [Settings](#settings)
-  - [Hourly games](#hourly-games)
-  - [Random picks](#random-picks)
+  - [Hourly music](#hourly-music)
   - [K.K. Slider](#kk-slider)
   - [Playback](#playback)
-  - [When other media plays](#when-other-media-plays)
-  - [When I log in](#when-i-log-in)
-  - [Weather location](#weather-location)
+  - [Weather & about](#weather--about)
 - [Command line and keybinds](#command-line-and-keybinds)
 - [Config file](#config-file)
 - [Updating and uninstalling](#updating-and-uninstalling)
@@ -37,9 +38,9 @@ Nothing is stored on your machine. Tracks stream on demand.
 
 - **Four games:** Animal Crossing (GameCube), Wild World / City Folk, New Leaf, and New Horizons, or **Random** to mix them.
 - **Real weather:** on *Auto*, you hear the rain and snow versions when it's raining or snowing where you are. You can also lock it to Sunny, Rain, or Snow.
-- **Per-hour picks:** a 24-hour grid decides which games Random may choose each hour. Don't like New Leaf's 11 AM theme? Untick it and it never plays at 11 AM.
+- **Per-hour, per-weather picks:** grids decide which games Random may choose each hour, with a separate grid for sunny, rainy, and snowy weather. Love New Leaf's rainy 11 AM but not its sunny one? Untick just that box.
 - **Three ways to mix:** a new game every hour, one game all day, or switch every few minutes (10, 15, 30, or any interval you like).
-- **K.K. Slider:** Saturday night concerts from 8 PM to midnight, or K.K. all the time. Pick live versions, aircheck versions, or both.
+- **K.K. Slider:** Saturday night concerts from 8 PM to midnight, or K.K. all the time. Pick live versions, aircheck versions, or both, and choose exactly which of the 92 songs he plays, with search and a preview button.
 - **Seamless loops:** each song loops at the game's own loop point instead of restarting its intro.
 - **Steps aside for other media:** when YouTube Music, Spotify, a video, or any other player starts, the music pauses or turns down. It comes back by itself when that stops.
 - **Your choice at login:** start playing, wait for you to press play, or pick up where you left off.
@@ -90,7 +91,7 @@ From top to bottom:
 - **Weather:** **Auto** follows the real weather. **Sunny**, **Rain**, and **Snow** lock it. On Auto, the line underneath shows the current conditions and where they're from.
 - **On hold:** when another player is playing, a line explains that the music is paused (or quieter) and will come back on its own.
 - **Shuffle game / Next song:** shows when it's useful. On Random it rolls a different game for now; during K.K. it skips to another song.
-- **Settings:** opens the settings view.
+- **Settings:** opens the settings menu (see below).
 
 **Keyboard**, while the panel is open:
 
@@ -99,34 +100,54 @@ From top to bottom:
 | `p`, Space, or Enter | Play / pause                    |
 | `n`         | Shuffle game / next K.K. song               |
 | `s`         | Switch between the panel and Settings       |
-| `Esc`       | Back out of Settings, or close the panel    |
+| `Esc`       | Go back one page, or close the panel        |
 | `Tab`       | Move to the neighbouring bar panel          |
 
 ## Settings
 
+Settings opens on a short menu. Each row shows a summary of what's set inside,
+so you can see your whole setup at a glance, and opens its own page. Every page
+has a back arrow, and `Esc` goes back one page at a time.
+
 <p>
-  <img src="docs/settings-top.png" width="48%" alt="Settings: hourly games grid and random picks">
-  <img src="docs/settings-bottom.png" width="48%" alt="Settings: K.K., playback, other media, login, weather">
+  <img src="docs/settings.png" width="48%" alt="The Settings menu">
+  <img src="docs/hourly.png" width="48%" alt="Hourly music settings">
 </p>
 
 Every change saves immediately; there's no Save button.
 
-### Hourly games
+### Hourly music
 
-A grid of 24 hours by 4 games. When the game is set to **Random**, each hour
-only picks from the games ticked for that hour.
+Everything about how **Random** chooses a game. None of it applies when you've
+picked a specific game on the main panel. You chose that game, so you hear all
+of it, and the page reminds you of that.
+
+#### Which games can play
+
+Three grids, one each for **Sunny**, **Rain**, and **Snow**, picked with the
+tabs at the top. The page opens on the tab for the current weather. Each grid
+is 24 hours by 4 games, and Random only picks from the games ticked for the
+current hour **in the current weather's grid**.
 
 - Click a box to tick or untick one game for one hour.
 - Click an **hour** (like `11 AM`) to tick or untick all four games for that hour.
 - Click a **game heading** (like `NL`) to tick or untick that game for all twelve hours in that half of the grid (AM or PM).
 - The current hour is highlighted.
 - An hour with **nothing** ticked behaves as if everything is ticked, so it never goes silent.
+- **Copy this grid to the other weathers** makes the grid you're looking at the grid for all three weathers. It's handy when you want one change everywhere.
 
-The grid has no effect when you've picked a specific game.
+So if you love New Leaf's rainy 11 AM but not its sunny one: open the **Sunny**
+tab and untick `NL` at `11 AM`, and leave the **Rain** tab alone.
 
-### Random picks
+The original GameCube game has no rain music. On the **Rain** tab, its `GC`
+column decides whether its *sunny* track can play on rainy days.
 
-How Random chooses a game. The line under the buttons explains the selected option.
+If you're upgrading from an earlier version, your old single grid becomes the
+starting grid for all three weathers, so nothing changes until you edit one.
+
+#### Random picks
+
+How often Random chooses. The line under the buttons explains the selected option.
 
 | Option                | What you hear |
 |-----------------------|---------------|
@@ -140,27 +161,52 @@ Details worth knowing:
 - **Every few minutes** lines up with the clock. At 15 minutes it switches at :00, :15, :30, and :45. With a custom interval that doesn't divide the hour, like 7 minutes, the last stretch before the hour is shorter, and the hour change always starts fresh.
 - Each hour gets its own shuffled order of games. Every switch lands on a **different** game, and all of the hour's ticked games play before any repeat. If only one game is ticked for an hour, it simply stays on that game.
 - **Shuffle game** (or a middle click) rolls a new pick or a new order. That lasts until the next hour.
+- When the weather changes, Random switches to the grid for the new weather straight away.
 
 ### K.K. Slider
+
+<p>
+  <img src="docs/kk-settings.png" width="48%" alt="K.K. Slider settings">
+  <img src="docs/kk-songs.png" width="48%" alt="Choosing K.K. songs">
+</p>
 
 | Setting                     | What it does |
 |-----------------------------|--------------|
 | **Saturday night concerts** | K.K. takes over every Saturday from 8 PM until midnight (your local time), like in the games. On by default. |
 | **K.K. all the time**       | Plays K.K. songs instead of the hourly music, any day and any time. |
 | **Live / Aircheck / Both**  | *Live* is K.K. with his guitar; *Aircheck* is the full-band radio version; *Both* picks either at random for each song. |
+| **Choose songs**            | Opens the song list (below). Its summary shows how many songs are ticked. |
 
 During K.K., songs play through once and the next starts automatically. They're
-drawn from 92 songs across the series and won't repeat until 20 others have
-played. The Game and Weather choices are ignored until K.K. is over.
+drawn from the songs you've ticked and won't repeat until 20 others have played,
+or until every ticked song has had a turn if you've ticked fewer than that. The
+Game and Weather choices are ignored until K.K. is over.
+
+#### Choose songs
+
+All 92 songs, grouped by the game they're credited to: **Animal Crossing** (52),
+**City Folk** (20), **New Leaf** (16), and **New Horizons** (4).
+
+- **Tick or untick** a song with its box, or click its name.
+- **Group heading:** the box next to a group's name ticks or unticks the whole group. It shows a dash when only some of the group is ticked, along with a count like `48/52`.
+- **Search:** type part of a name (for example `bossa`) to narrow the list. `Esc` clears the search, and a second `Esc` goes back.
+- **All / None:** tick or untick every song, or every song matching the search when there is one.
+- **Preview (▶):** plays that song right away, over whatever was playing. Press ■ (or the same song's button) to stop. When the preview ends or stops, the scheduled music picks back up. Previews take a couple of seconds to start, while the song streams in.
+- If nothing is ticked, K.K. plays from every song rather than going silent.
+
+Songs you untick are stored as a skip list, so any songs added in future
+versions start out ticked.
 
 ### Playback
+
+<img src="docs/playback.png" width="48%" alt="Playback settings">
 
 | Setting                 | What it does |
 |-------------------------|--------------|
 | **Fade between tracks** | Fades the old song out over about a second and a half when the hour, weather, or game changes. Off means an instant switch. |
 | **Notify on new track** | Shows a desktop notification with the game and hour (or K.K. song) whenever the music changes. Off by default. |
 
-### When other media plays
+#### When other media plays
 
 Anything that shows up in Omarchy's media controls counts: YouTube or YouTube
 Music in a browser, Spotify, a video, VLC, and so on.
@@ -176,7 +222,7 @@ Once every other player has stopped or paused, the music comes back after about
 make it jump back in. Apps that don't report to the media controls (most games,
 for example) won't trigger it.
 
-### When I log in
+#### When I log in
 
 | Option            | What happens when you log in |
 |-------------------|------------------------------|
@@ -187,20 +233,23 @@ for example) won't trigger it.
 Only a real login counts. Restarting the Omarchy shell or updating the plugin
 keeps whatever was already happening.
 
-### Weather location
+### Weather & about
 
-Auto weather uses the location set in **Omarchy's weather widget**. If you
-haven't set one, the plugin works out your location the same way that widget
-does (from your IP address). To change it, set a location in the weather widget
-and the music follows along; there's nothing to configure here.
+<img src="docs/about.png" width="48%" alt="Weather and about">
+
+**Weather location.** Auto weather uses the location set in **Omarchy's
+weather widget**. If you haven't set one, the plugin works out your location the
+same way that widget does (from your IP address). To change it, set a location
+in the weather widget and the music follows along; there's nothing to configure
+here.
 
 The weather is checked when the plugin starts and every 20 minutes after that.
 Rain covers drizzle, rain, freezing rain, showers, and thunderstorms. Snow covers
 snowfall, snow grains, and snow showers. Everything else, cloudy and foggy
 included, counts as sunny.
 
-The original GameCube game has no rain music, so on a rainy day it plays its
-sunny version (the panel says so).
+**About.** The plugin's version, credits, and links to this repository and the
+Animal Crossing Music extension. Links open in your browser.
 
 ## Command line and keybinds
 
@@ -249,22 +298,27 @@ Anything missing or invalid falls back to its default.
 | `weather`        | `auto`, `sunny`, `raining`, `snowing` | `auto` |
 | `randomMode`     | `hourly`, `daily`, `interval` | `hourly` |
 | `shuffleMinutes` | `1` to `60` (used by `interval`) | `15` |
-| `hours`          | `"0"` to `"23"`, each a list of allowed games | every game, every hour |
+| `hours`          | `sunny`, `raining`, `snowing`, each with `"0"` to `"23"` mapped to a list of allowed games | every game, every hour, every weather |
 | `kk.saturday`    | `true` / `false` | `true` |
 | `kk.always`      | `true` / `false` | `false` |
 | `kk.version`     | `live`, `aircheck`, `both` | `live` |
+| `kk.skip`        | list of K.K. song names to leave out, like `"AC - K.K. Aria"` | `[]` |
 | `fade`           | `true` / `false` | `true` |
 | `notify`         | `true` / `false` | `false` |
 | `otherMedia`     | `pause`, `lower`, `ignore` | `pause` |
 | `atLogin`        | `play`, `wait`, `resume` | `play` |
 
-For example, to keep New Leaf out of 11 AM:
+For example, to keep New Leaf out of sunny 11 AMs but keep it on rainy ones
+(hours you leave out keep every game):
 
 ```json
 "hours": {
-  "11": ["animal-crossing", "wild-world", "new-horizons"]
+  "sunny":   { "11": ["animal-crossing", "wild-world", "new-horizons"] },
+  "raining": { "11": ["animal-crossing", "wild-world", "new-leaf", "new-horizons"] }
 }
 ```
+
+Song names for `kk.skip` are listed in `Data.js`.
 
 ## Updating and uninstalling
 

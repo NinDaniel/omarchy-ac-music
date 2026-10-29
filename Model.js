@@ -41,6 +41,42 @@ function allHours() {
   return hours
 }
 
+// One 24-hour grid per weather: { sunny: {"0": [...], ...}, raining: ..., snowing: ... }
+function allWeatherHours() {
+  var grids = {}
+  WEATHERS.forEach(function(w) { grids[w] = allHours() })
+  return grids
+}
+
+function normalizeGrid(raw, fallback) {
+  var grid = {}
+  for (var h = 0; h < 24; h++) {
+    var list = raw && Array.isArray(raw[String(h)]) ? raw[String(h)] : fallback[String(h)]
+    grid[String(h)] = GAME_IDS.filter(function(id) { return list.indexOf(id) >= 0 })
+  }
+  return grid
+}
+
+// Accepts the per-weather shape, the single grid from v0.3 and earlier (which
+// becomes the starting grid for every weather), or a mix of both: a weather's
+// own grid wins, and any hours it lacks come from the old single grid.
+function normalizeHours(raw) {
+  var r = raw && typeof raw === "object" ? raw : {}
+  var base = normalizeGrid(r, allHours())
+  var grids = {}
+  WEATHERS.forEach(function(w) {
+    var own = r[w] && typeof r[w] === "object" ? r[w] : null
+    grids[w] = own ? normalizeGrid(own, base) : cloneGrid(base)
+  })
+  return grids
+}
+
+function cloneGrid(grid) {
+  var out = {}
+  for (var k in grid) out[k] = grid[k].slice()
+  return out
+}
+
 function defaultConfig() {
   return {
     version: 1,
@@ -51,8 +87,9 @@ function defaultConfig() {
     // "hourly", "daily", or "interval" (a new game every shuffleMinutes).
     randomMode: "hourly",
     shuffleMinutes: 15,
-    hours: allHours(),
-    kk: { saturday: true, always: false, version: "live" },
+    hours: allWeatherHours(),
+    // `skip` lists K.K. songs the user unticked (new songs default to on).
+    kk: { saturday: true, always: false, version: "live", skip: [] },
     fade: true,
     notify: false,
     // What happens at login: "play", "wait" (stay paused), or "resume".
@@ -79,12 +116,6 @@ function normalizeConfig(raw) {
   var volume = Number(c.volume)
   var minutes = Math.round(Number(c.shuffleMinutes))
 
-  var hours = {}
-  for (var h = 0; h < 24; h++) {
-    var list = c.hours && Array.isArray(c.hours[String(h)]) ? c.hours[String(h)] : d.hours[String(h)]
-    hours[String(h)] = GAME_IDS.filter(function(id) { return list.indexOf(id) >= 0 })
-  }
-
   return {
     version: 1,
     playing: bool(c.playing, d.playing),
@@ -93,11 +124,12 @@ function normalizeConfig(raw) {
     weather: pick(c.weather, ["auto"].concat(WEATHERS), d.weather),
     randomMode: pick(c.randomMode, ["hourly", "daily", "interval"], d.randomMode),
     shuffleMinutes: isNaN(minutes) ? d.shuffleMinutes : Math.max(1, Math.min(60, minutes)),
-    hours: hours,
+    hours: normalizeHours(c.hours),
     kk: {
       saturday: bool(kk.saturday, d.kk.saturday),
       always: bool(kk.always, d.kk.always),
-      version: pick(kk.version, KK_VERSIONS, d.kk.version)
+      version: pick(kk.version, KK_VERSIONS, d.kk.version),
+      skip: Array.isArray(kk.skip) ? kk.skip.filter(function(s) { return typeof s === "string" }) : []
     },
     fade: bool(c.fade, d.fade),
     notify: bool(c.notify, d.notify),
@@ -126,9 +158,19 @@ function dateKey(date) {
 
 // Games allowed for an hour by the settings grid. An hour with nothing ticked
 // falls back to every game rather than going silent.
-function allowedGames(config, hour) {
-  var list = config.hours[String(hour)] || []
+function allowedGames(config, hour, weather) {
+  var grid = config.hours[weather] || config.hours.sunny
+  var list = grid[String(hour)] || []
   return list.length > 0 ? list : GAME_IDS.slice()
+}
+
+// How many hour/game boxes are unticked across all three weathers.
+function skippedCount(config) {
+  var n = 0
+  WEATHERS.forEach(function(w) {
+    for (var h = 0; h < 24; h++) n += GAME_IDS.length - config.hours[w][String(h)].length
+  })
+  return n
 }
 
 // Which shuffle slot of the hour a time falls in (always 0 unless Random is
@@ -150,9 +192,9 @@ function shuffled(list, seed) {
   return out
 }
 
-function pickGame(config, day, hour, salt, slot) {
+function pickGame(config, day, hour, salt, slot, weather) {
   if (config.game !== "random") return config.game
-  var allowed = allowedGames(config, hour)
+  var allowed = allowedGames(config, hour, weather || "sunny")
   if (config.randomMode === "interval") {
     // Walk a per-hour shuffled order: every switch lands on a different game
     // and all allowed games come up before any repeats.
@@ -230,4 +272,59 @@ function parseOmarchyLocation(text) {
   } catch (e) {
     return { name: "", latitude: null, longitude: null }
   }
+}
+
+// ---- K.K. ---------------------------------------------------------------
+
+var KK_GROUPS = [
+  { prefix: "AC", name: "Animal Crossing" },
+  { prefix: "CF", name: "City Folk" },
+  { prefix: "NL", name: "New Leaf" },
+  { prefix: "NH", name: "New Horizons" }
+]
+
+function kkGroup(song) {
+  return song.substring(0, song.indexOf(" - "))
+}
+
+// Songs K.K. may play: everything not skipped, or everything if all are.
+function kkAllowed(config, songs) {
+  var allowed = songs.filter(function(s) { return config.kk.skip.indexOf(s) < 0 })
+  return allowed.length > 0 ? allowed : songs.slice()
+}
+
+// Pick the next K.K. song, avoiding recent ones while there's enough choice.
+function pickKKSong(allowed, recent) {
+  var span = Math.min(20, allowed.length - 1)
+  var avoid = span > 0 ? recent.slice(-span) : []
+  var fresh = allowed.filter(function(s) { return avoid.indexOf(s) < 0 })
+  return fresh[Math.floor(Math.random() * fresh.length)]
+}
+
+// ---- Settings menu summaries ---------------------------------------------
+
+function randomModeText(config) {
+  if (config.randomMode === "daily") return "one game per day"
+  if (config.randomMode === "interval") return "new game every " + config.shuffleMinutes + " min"
+  return "new game every hour"
+}
+
+function hourlySummary(config) {
+  var skipped = skippedCount(config)
+  var tail = skipped > 0 ? " · " + skipped + " skipped" : ""
+  if (config.game !== "random") return gameName(config.game) + " picked · grid applies to Random" + tail
+  return "Random · " + randomModeText(config) + tail
+}
+
+function kkSummary(config, songs) {
+  var when = config.kk.always ? "All the time" : (config.kk.saturday ? "Saturday nights" : "Off")
+  var version = config.kk.version === "both" ? "Live & aircheck" : (config.kk.version === "aircheck" ? "Aircheck" : "Live")
+  var on = songs.filter(function(s) { return config.kk.skip.indexOf(s) < 0 }).length
+  return when + " · " + version + " · " + on + " of " + songs.length + " songs"
+}
+
+function playbackSummary(config) {
+  var other = { pause: "Pause", lower: "Lower", ignore: "Keep playing" }[config.otherMedia]
+  var login = { play: "Play", wait: "Wait", resume: "Remember" }[config.atLogin]
+  return "Fade " + (config.fade ? "on" : "off") + " · " + other + " for other media · " + login + " at login"
 }

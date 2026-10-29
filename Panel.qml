@@ -31,12 +31,17 @@ Panel {
   readonly property color accent: Commons.Color.accent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
-  // "main" or "settings"
+  // Which page is showing: "main", the "settings" menu, or a settings page.
   property string view: "main"
-  // Custom shuffle interval picked (shows the minutes field even when the
-  // value happens to match a preset).
-  property bool customShuffle: false
-  readonly property var shufflePresets: [10, 15, 30]
+  readonly property var parentView: ({
+    settings: "main", hourly: "settings", kk: "settings", playback: "settings",
+    about: "settings", kksongs: "kk"
+  })
+
+  function back() {
+    view = parentView[view] || "main"
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
 
   readonly property string iconSun: String.fromCodePoint(0xF0599)
   readonly property string iconRain: String.fromCodePoint(0xF0597)
@@ -47,6 +52,9 @@ Panel {
   readonly property string iconSkip: String.fromCodePoint(0xF04AD)
   readonly property string iconCog: String.fromCodePoint(0xF0493)
   readonly property string iconBack: String.fromCodePoint(0xF0141)
+  readonly property string iconChevron: String.fromCodePoint(0xF0142)
+  readonly property string iconPlay: String.fromCodePoint(0xF040A)
+  readonly property string iconStop: String.fromCodePoint(0xF04DB)
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -58,15 +66,6 @@ Panel {
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
   onViewChanged: if (panelFlick) panelFlick.contentY = 0
-
-  function randomModeCaption() {
-    if (cfg.randomMode === "daily")
-      return "One game plays all day, so you might get New Leaf from midnight to midnight. "
-        + "If that game is unticked for an hour above, that hour picks from its ticked games instead."
-    if (cfg.randomMode === "interval")
-      return "Every few minutes it switches to a different game's version of the current hour's song. Choose how often:"
-    return "Each hour picks a game from the ones ticked for it above."
-  }
 
   function holdText() {
     if (!svc) return ""
@@ -125,7 +124,7 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       onCloseRequested: {
-        if (root.view !== "main") root.view = "main"
+        if (root.view !== "main") root.back()
         else root.close()
       }
       onTabRequested: function(direction) { root.switchPanel(direction) }
@@ -314,363 +313,33 @@ Panel {
             }
           }
 
-          // ================= Settings view =================
+          // ================= Settings pages =================
 
-          Row {
-            visible: root.view === "settings"
-            spacing: Style.space(8)
-
-            PanelActionButton {
-              anchors.verticalCenter: parent.verticalCenter
-              iconText: root.iconBack
-              tooltipText: "Back"
-              foreground: root.foreground
-              fontFamily: root.fontFamily
-              onClicked: root.view = "main"
-            }
-
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              text: "Settings"
-              color: root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.title
-              font.bold: true
-            }
-          }
-
-          PanelSectionHeader { visible: root.view === "settings"; text: "HOURLY GAMES"; foreground: root.foreground; fontFamily: root.fontFamily }
-
-          Text {
-            visible: root.view === "settings"
+          Loader {
+            id: pageLoader
             width: parent.width
-            text: "When the game is set to Random, each hour only picks from the games ticked here. Click an hour or a game heading to flip the whole row or column."
-            color: root.dim
-            wrapMode: Text.WordWrap
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-          }
-
-          Row {
-            visible: root.view === "settings"
-            width: parent.width
-            spacing: Style.space(16)
-
-            HourTable { firstHour: 0; width: (parent.width - parent.spacing) / 2 }
-            HourTable { firstHour: 12; width: (parent.width - parent.spacing) / 2 }
-          }
-
-          PanelSectionHeader { visible: root.view === "settings"; text: "RANDOM PICKS"; foreground: root.foreground; fontFamily: root.fontFamily }
-
-          ButtonGroup {
-            visible: root.view === "settings"
-            spacing: Style.space(6)
-            value: root.cfg.randomMode
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            focusable: false
-            options: [
-              { value: "hourly", label: "Every hour", tooltip: "A new game each hour" },
-              { value: "daily", label: "Once a day", tooltip: "One game all day, from midnight to midnight" },
-              { value: "interval", label: "Every few minutes", tooltip: "Switch between games' versions of this hour's song" }
-            ]
-            onChanged: function(v) { if (root.svc) root.svc.update({ randomMode: v }) }
-          }
-
-          Text {
-            visible: root.view === "settings"
-            width: parent.width
-            text: root.randomModeCaption()
-            color: root.dim
-            wrapMode: Text.WordWrap
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-          }
-
-          ButtonGroup {
-            visible: root.view === "settings" && root.cfg.randomMode === "interval"
-            spacing: Style.space(6)
-            value: root.customShuffle || root.shufflePresets.indexOf(root.cfg.shuffleMinutes) < 0 ? "custom" : String(root.cfg.shuffleMinutes)
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            focusable: false
-            options: root.shufflePresets.map(function(m) { return { value: String(m), label: m + " min" } })
-              .concat([{ value: "custom", label: "Custom" }])
-            onChanged: function(v) {
-              if (v === "custom") {
-                root.customShuffle = true
-                return
+            active: root.view !== "main"
+            visible: active
+            sourceComponent: {
+              switch (root.view) {
+                case "hourly": return hourlyPage
+                case "kk": return kkPage
+                case "kksongs": return kkSongsPage
+                case "playback": return playbackPage
+                case "about": return aboutPage
+                default: return settingsMenu
               }
-              root.customShuffle = false
-              if (root.svc) root.svc.update({ shuffleMinutes: parseInt(v, 10) })
-            }
-          }
-
-          NumberField {
-            visible: root.view === "settings" && root.cfg.randomMode === "interval"
-              && (root.customShuffle || root.shufflePresets.indexOf(root.cfg.shuffleMinutes) < 0)
-            label: "Minutes between switches"
-            from: 1
-            to: 60
-            value: root.cfg.shuffleMinutes
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            onModified: function(v) { if (root.svc) root.svc.update({ shuffleMinutes: v }) }
-          }
-
-          Text {
-            visible: root.view === "settings" && root.cfg.randomMode === "interval" && root.cfg.game !== "random"
-            width: parent.width
-            text: "Switches only happen while the game is set to Random."
-            color: root.dim
-            wrapMode: Text.WordWrap
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-          }
-
-          PanelSectionHeader { visible: root.view === "settings"; text: "K.K. SLIDER"; foreground: root.foreground; fontFamily: root.fontFamily }
-
-          Toggle {
-            visible: root.view === "settings"
-            width: parent.width
-            label: "Saturday night concerts"
-            description: "K.K. takes over on Saturdays from 8 PM until midnight"
-            checked: root.cfg.kk.saturday
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            onClicked: root.svc.setKK({ saturday: !root.cfg.kk.saturday })
-          }
-
-          Toggle {
-            visible: root.view === "settings"
-            width: parent.width
-            label: "K.K. all the time"
-            description: "Play K.K. Slider songs instead of the hourly music"
-            checked: root.cfg.kk.always
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            onClicked: root.svc.setKK({ always: !root.cfg.kk.always })
-          }
-
-          ButtonGroup {
-            visible: root.view === "settings"
-            spacing: Style.space(6)
-            value: root.cfg.kk.version
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            focusable: false
-            options: [
-              { value: "live", label: "Live", tooltip: "K.K. performing with his guitar" },
-              { value: "aircheck", label: "Aircheck", tooltip: "The full-band radio versions" },
-              { value: "both", label: "Both" }
-            ]
-            onChanged: function(v) { if (root.svc) root.svc.setKK({ version: v }) }
-          }
-
-          PanelSectionHeader { visible: root.view === "settings"; text: "PLAYBACK"; foreground: root.foreground; fontFamily: root.fontFamily }
-
-          Toggle {
-            visible: root.view === "settings"
-            width: parent.width
-            label: "Fade between tracks"
-            description: "Fade out the old song when the hour or weather changes"
-            checked: root.cfg.fade
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            onClicked: root.svc.update({ fade: !root.cfg.fade })
-          }
-
-          Toggle {
-            visible: root.view === "settings"
-            width: parent.width
-            label: "Notify on new track"
-            description: "Show a notification when the music changes"
-            checked: root.cfg.notify
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            onClicked: root.svc.update({ notify: !root.cfg.notify })
-          }
-
-          PanelSectionHeader { visible: root.view === "settings"; text: "WHEN OTHER MEDIA PLAYS"; foreground: root.foreground; fontFamily: root.fontFamily }
-
-          Text {
-            visible: root.view === "settings"
-            width: parent.width
-            text: "YouTube Music, Spotify, a video in your browser, or any other media player. The music comes back a few seconds after it stops."
-            color: root.dim
-            wrapMode: Text.WordWrap
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-          }
-
-          ButtonGroup {
-            visible: root.view === "settings"
-            spacing: Style.space(6)
-            value: root.cfg.otherMedia
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            focusable: false
-            options: [
-              { value: "pause", label: "Pause" },
-              { value: "lower", label: "Lower volume", tooltip: "Drop to a quarter of your volume" },
-              { value: "ignore", label: "Keep playing" }
-            ]
-            onChanged: function(v) { if (root.svc) root.svc.update({ otherMedia: v }) }
-          }
-
-          PanelSectionHeader { visible: root.view === "settings"; text: "WHEN I LOG IN"; foreground: root.foreground; fontFamily: root.fontFamily }
-
-          ButtonGroup {
-            visible: root.view === "settings"
-            spacing: Style.space(6)
-            value: root.cfg.atLogin
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            focusable: false
-            options: [
-              { value: "play", label: "Start playing" },
-              { value: "wait", label: "Wait for me", tooltip: "Stay paused until you press play" },
-              { value: "resume", label: "Remember", tooltip: "Play if it was playing when you logged out" }
-            ]
-            onChanged: function(v) { if (root.svc) root.svc.update({ atLogin: v }) }
-          }
-
-          PanelSectionHeader { visible: root.view === "settings"; text: "WEATHER LOCATION"; foreground: root.foreground; fontFamily: root.fontFamily }
-
-          Text {
-            visible: root.view === "settings"
-            width: parent.width
-            text: {
-              if (!root.svc) return ""
-              var place = root.svc.weatherPlace || "your location"
-              if (root.svc.location.latitude !== null)
-                return "Using " + place + " from Omarchy's weather widget."
-              return "Using " + place + ", detected automatically. To change it, set a location in Omarchy's weather widget and this follows along."
-            }
-            color: root.dim
-            wrapMode: Text.WordWrap
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-          }
-
-          Text {
-            visible: root.view === "settings"
-            width: parent.width
-            text: "Music streamed from the Animal Crossing Music extension project (acmusicext.com)."
-            color: root.dim
-            opacity: 0.7
-            wrapMode: Text.WordWrap
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-          }
-        }
-      }
-    }
-  }
-
-  // Twelve hours x four games of checkboxes. Clicking an hour flips its row,
-  // clicking a game heading flips its column (for these twelve hours).
-  component HourTable: Column {
-    id: table
-    property int firstHour: 0
-    readonly property var hourList: {
-      var list = []
-      for (var h = firstHour; h < firstHour + 12; h++) list.push(h)
-      return list
-    }
-    readonly property real labelWidth: Style.space(48)
-    readonly property real cellWidth: (width - labelWidth) / Model.GAMES.length
-    spacing: Style.space(2)
-
-    Row {
-      Item { width: table.labelWidth; height: 1 }
-      Repeater {
-        model: Model.GAMES
-        delegate: Text {
-          required property var modelData
-          width: table.cellWidth
-          horizontalAlignment: Text.AlignHCenter
-          text: modelData.short
-          color: headerMouse.containsMouse ? root.foreground : root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-          font.bold: true
-
-          MouseArea {
-            id: headerMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              var g = parent.modelData.id
-              var allOn = table.hourList.every(function(h) { return root.cfg.hours[String(h)].indexOf(g) >= 0 })
-              root.svc.setHoursGames(table.hourList, [g], !allOn)
-            }
-          }
-          PanelToolTip { visible: headerMouse.containsMouse; text: parent.modelData.tooltip }
-        }
-      }
-    }
-
-    Repeater {
-      model: table.hourList
-      delegate: Row {
-        id: hourRow
-        required property int modelData
-        readonly property bool isNow: !!root.svc && root.svc.hour === modelData
-
-        Text {
-          width: table.labelWidth
-          height: Style.space(20)
-          verticalAlignment: Text.AlignVCenter
-          text: Model.hourLabel(hourRow.modelData)
-          color: hourRow.isNow ? root.accent : (hourMouse.containsMouse ? root.foreground : root.dim)
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
-          font.bold: hourRow.isNow
-
-          MouseArea {
-            id: hourMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              var h = hourRow.modelData
-              var allOn = root.cfg.hours[String(h)].length === Model.GAME_IDS.length
-              root.svc.setHoursGames([h], Model.GAME_IDS, !allOn)
-            }
-          }
-        }
-
-        Repeater {
-          model: Model.GAMES
-          delegate: Item {
-            id: cell
-            required property var modelData
-            readonly property bool checked: root.cfg.hours[String(hourRow.modelData)].indexOf(modelData.id) >= 0
-            width: table.cellWidth
-            height: Style.space(20)
-
-            Rectangle {
-              anchors.centerIn: parent
-              width: Style.space(14)
-              height: width
-              radius: Math.min(3, Style.cornerRadius)
-              color: cell.checked ? root.accent : (cellMouse.containsMouse ? Style.hoverFillFor(root.foreground, root.accent) : "transparent")
-              border.width: cell.checked ? 0 : 1
-              border.color: cellMouse.containsMouse ? root.foreground : root.dim
-            }
-
-            MouseArea {
-              id: cellMouse
-              anchors.fill: parent
-              hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
-              onClicked: root.svc.setHourGame(hourRow.modelData, cell.modelData.id, !cell.checked)
             }
           }
         }
       }
     }
   }
+
+  Component { id: settingsMenu; SettingsMenu { p: root } }
+  Component { id: hourlyPage; HourlyPage { p: root } }
+  Component { id: kkPage; KKPage { p: root } }
+  Component { id: kkSongsPage; KKSongsPage { p: root } }
+  Component { id: playbackPage; PlaybackPage { p: root } }
+  Component { id: aboutPage; AboutPage { p: root } }
 }
