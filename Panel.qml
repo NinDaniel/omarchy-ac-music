@@ -129,9 +129,11 @@ Panel {
         else root.close()
       }
       onTabRequested: function(direction) { root.switchPanel(direction) }
+      // Space and Enter arrive here rather than as text keys.
+      onActivateRequested: if (root.svc) root.svc.togglePlaying()
       onTextKey: function(t) {
         if (!root.svc) return
-        if (t === "p" || t === " ") root.svc.togglePlaying()
+        if (t === "p") root.svc.togglePlaying()
         else if (t === "n") root.svc.next()
         else if (t === "s") root.view = root.view === "main" ? "settings" : "main"
       }
