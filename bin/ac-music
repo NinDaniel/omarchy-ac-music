@@ -1,0 +1,41 @@
+#!/bin/bash
+# Control AC Hourly Music from a terminal or a Hyprland keybind.
+# Thin wrapper over the plugin's IPC target in the running Omarchy shell.
+
+set -e
+
+usage() {
+  cat <<USAGE
+Usage: ac-music <command> [arg]
+
+  toggle | play | pause     Start or stop the music
+  next                      Shuffle to another game (Random) or skip a K.K. song
+  status                    Show what's playing
+  game <id>                 animal-crossing, wild-world, new-leaf, new-horizons, random
+  weather <mode>            auto, sunny, rain, snow
+  volume <n | +n | -n>      Set or nudge the volume (0-100)
+  kk [on|off]               K.K. Slider all the time (toggles with no argument)
+  panel                     Open the bar popup
+  settings                  Open the bar popup on Settings
+USAGE
+}
+
+cmd=${1:-}
+case $cmd in
+  toggle | play | pause | next | status)
+    exec omarchy-shell danr.ac-music "$cmd" ;;
+  game | weather | volume)
+    [[ -n ${2:-} ]] || { usage; exit 1; }
+    exec omarchy-shell danr.ac-music "$cmd" "$2" ;;
+  kk)
+    exec omarchy-shell danr.ac-music kk "${2:-toggle}" ;;
+  panel)
+    exec omarchy-shell shell toggle danr.ac-music ;;
+  settings)
+    omarchy-shell danr.ac-music requestView settings >/dev/null
+    exec omarchy-shell shell summon danr.ac-music ;;
+  -h | --help | help | "")
+    usage ;;
+  *)
+    usage; exit 1 ;;
+esac

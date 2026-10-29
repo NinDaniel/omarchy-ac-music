@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "danr.ac-music",
+  "name": "AC Hourly Music",
+  "version": "0.1.0",
+  "author": "Daniel Roca",
+  "license": "MIT",
+  "description": "Animal Crossing hourly music in your bar: pick the game, follow your real weather with rain and snow tracks, and catch K.K. Slider on Saturday nights.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "AC Hourly Music",
+    "description": "Leaf icon with now playing, game, weather, volume, and per-hour settings.",
+    "category": "Media",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
