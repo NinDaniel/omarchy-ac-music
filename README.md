@@ -516,7 +516,7 @@ K.K. song list). The rules are covered by tests that run in plain Node, with no
 Quickshell needed:
 
 ```bash
-node --test tests/
+node --test tests/*.test.js
 ```
 
 GitHub runs the same tests on every push and pull request

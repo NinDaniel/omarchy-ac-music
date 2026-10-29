@@ -15,7 +15,7 @@ jobs:
           node-version: 22
 
       - name: Model and data tests
-        run: node --test tests/
+        run: node --test tests/*.test.js
 
       - name: Shell scripts parse
         run: |
