@@ -23,7 +23,7 @@ test("defaults: four games ticked, K.K. unticked, live versions only", () => {
   for (const w of Model.WEATHERS) for (let h = 0; h < 24; h++) assert.deepEqual(c.hours[w][h], ALL)
   assert.equal(Model.kkHourCount(c), 0)
   const n = Model.kkCounts(c, Data.kkSongs)
-  assert.deepEqual([n.live, n.aircheck, n.any], [92, 0, 92])
+  assert.deepEqual([n.live, n.aircheck, n.any], [95, 0, 95])
   assert.deepEqual(c.kk.concerts, { enabled: true, days: [6], start: 20, end: 24 })
   assert.deepEqual(c.kk.between, { mode: "off", hours: [] })
   assert.equal(c.quiet.enabled, false)
@@ -71,9 +71,9 @@ test("migrates the old version setting and skip list into per-version ticks", ()
     const n = Model.kkCounts(Model.normalizeConfig({ kk: raw }), Data.kkSongs)
     return [n.live, n.aircheck, n.any]
   }
-  assert.deepEqual(counts({ version: "live" }), [92, 0, 92])
-  assert.deepEqual(counts({ version: "aircheck" }), [0, 92, 92])
-  assert.deepEqual(counts({ version: "both" }), [92, 92, 92])
+  assert.deepEqual(counts({ version: "live" }), [95, 0, 95])
+  assert.deepEqual(counts({ version: "aircheck" }), [0, 95, 95])
+  assert.deepEqual(counts({ version: "both" }), [95, 95, 95])
   const c = Model.normalizeConfig({ kk: { version: "both", skip: ["AC - K.K. Aria"] } })
   assert.deepEqual(Model.kkVersionsFor(c, "AC - K.K. Aria"), [])
 })
@@ -204,7 +204,7 @@ test("K.K. picks respect per-version ticks and avoid recent songs", () => {
 
 test("nothing ticked means K.K. plays from every song", () => {
   const off = Data.kkSongs.flatMap(s => ["live/" + s, "aircheck/" + s])
-  assert.equal(Model.kkAllowed(Model.normalizeConfig({ kk: { off } }), Data.kkSongs).length, 92)
+  assert.equal(Model.kkAllowed(Model.normalizeConfig({ kk: { off } }), Data.kkSongs).length, 95)
 })
 
 // ---- Quiet hours, weather, URLs ------------------------------------------

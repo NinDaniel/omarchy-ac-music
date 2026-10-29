@@ -4,14 +4,22 @@ const fs = require("fs")
 const path = require("path")
 const { Data, Model, root } = require("./load")
 
-test("K.K. song list: 92 unique songs, each in a known group", () => {
-  assert.equal(Data.kkSongs.length, 92)
-  assert.equal(new Set(Data.kkSongs).size, 92)
+test("K.K. song list: 95 unique songs, each in a known group", () => {
+  assert.equal(Data.kkSongs.length, 95)
+  assert.equal(new Set(Data.kkSongs).size, 95)
   const prefixes = Model.KK_GROUPS.map(g => g.prefix)
   for (const song of Data.kkSongs) {
     assert.ok(prefixes.includes(Model.kkGroup(song)), song)
     assert.ok(Model.kkTitle(song).length > 0, song)
   }
+})
+
+test("K.K. song names with apostrophes are included", () => {
+  for (const song of ["AC - K.K. Cruisin'", "AC - Rockin' K.K.", "AC - Surfin' K.K.", "NH - Drivin'"])
+    assert.ok(Data.kkSongs.includes(song), song)
+  const groups = {}
+  for (const song of Data.kkSongs) groups[Model.kkGroup(song)] = (groups[Model.kkGroup(song)] || 0) + 1
+  assert.deepEqual(groups, { AC: 55, CF: 20, NL: 16, NH: 4 })
 })
 
 test("loop points: every game, valid hours, start before end", () => {

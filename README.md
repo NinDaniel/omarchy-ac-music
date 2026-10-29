@@ -49,7 +49,7 @@ don't download again every day.
   - **Concerts** on the days and hours you choose (Saturday 8 PM to midnight out of the box), or K.K. all the time.
   - **In the hourly mix:** tick K.K. in the grids and Random can pick him for an hour, like a fifth game.
   - **Between hours:** one K.K. song as the hour changes, before that hour's music starts.
-  - **Every song, both versions:** tick the live and aircheck version of each of the 92 songs separately, with search and previews.
+  - **Every song, both versions:** tick the live and aircheck version of each of the 95 songs separately, with search and previews.
 - **Seamless loops:** each song loops at the game's own loop point instead of restarting its intro.
 - **Steps aside for other media:** when YouTube Music, Spotify, a video, or any other player starts, the music pauses or turns down. It comes back by itself when that stops.
 - **Your choice at login:** start playing, wait for you to press play, or pick up where you left off.
@@ -253,8 +253,8 @@ Good to know:
 
 #### Choose songs
 
-Opens the full list of 92 songs, grouped by the game they're credited to:
-**Animal Crossing** (52), **City Folk** (20), **New Leaf** (16), and **New
+Opens the full list of 95 songs, grouped by the game they're credited to:
+**Animal Crossing** (55), **City Folk** (20), **New Leaf** (16), and **New
 Horizons** (4). Every song comes in two versions, and each has its own box:
 
 - **Live (L)** is K.K. with his guitar, as at his shows.
@@ -267,7 +267,7 @@ How it works:
 - **Search:** type part of a name (for example `bossa`) to narrow the list. `Esc` clears the search, and a second `Esc` goes back.
 - **All live / All aircheck / None** tick or untick a whole column, or just the songs matching the search when there is one.
 - **Preview (▶):** each version has its own play button, so you can hear the difference before choosing. It plays straight away, over whatever was playing. Press ■ to stop. When it ends or stops, the scheduled music picks back up. Previews take a couple of seconds to start while the song streams in.
-- The summary line counts what's ticked, for example *92 live · 12 aircheck · 92 of 92 songs can play*.
+- The summary line counts what's ticked, for example *95 live · 12 aircheck · 95 of 95 songs can play*.
 - If nothing is ticked at all, K.K. plays from every song rather than going silent.
 
 Out of the box every song's **live** version is ticked and its aircheck isn't,
