@@ -52,6 +52,18 @@ Column {
     onClicked: page.p.svc.update({ notify: !page.p.cfg.notify })
   }
 
+  Toggle {
+    width: parent.width
+    label: "Even out volume"
+    description: page.p.cfg.cache.enabled
+      ? "Brings every song to the same loudness, so quiet ones (like the GameCube airchecks) aren't drowned out"
+      : "Needs the song cache below, which is where songs are measured"
+    checked: page.p.cfg.levelVolume
+    foreground: page.p.foreground
+    fontFamily: page.p.fontFamily
+    onClicked: page.svc.update({ levelVolume: !page.p.cfg.levelVolume })
+  }
+
   PanelSectionHeader { text: "WHEN OTHER MEDIA PLAYS"; foreground: page.p.foreground; fontFamily: page.p.fontFamily }
 
   Text {

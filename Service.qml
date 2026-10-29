@@ -106,14 +106,21 @@ Item {
   // ---- Song cache (~/.cache/ac-music) ----
   readonly property string cacheDir: (Quickshell.env("XDG_CACHE_HOME") || home + "/.cache") + "/ac-music"
   readonly property string fetchScript: {
-    var url = String(Qt.resolvedUrl("bin/cache-fetch"))
+    var url = String(Qt.resolvedUrl("bin/song-cache"))
     return decodeURIComponent(url.indexOf("file://") === 0 ? url.substring(7) : url)
   }
-  // Relative paths of songs already on disk.
+  // Songs already on disk, by relative path: { loudness, peak } (null until measured).
   property var cached: ({})
+  // Pending cache jobs: { kind: "fetch", url } or { kind: "measure", rel }.
   property real cacheBytes: -1
   property var downloadQueue: []
   property string prefetchedFor: ""
+  // The K.K. song lined up next ({ song, version }), fetched ahead of time.
+  property var nextKK: null
+  // Levelling gain (dB) measured for the song mpv is playing, and the gain
+  // actually applied (0 while levelling is off), so the switch applies live.
+  property real loadedGain: 0
+  property real appliedGain: 0
 
   // ---- mpv ----
   // mpv-mpris (part of Omarchy's base install) makes mpv a system media
@@ -437,39 +444,80 @@ Item {
     return url
   }
 
+  function levelOn() {
+    return config.levelVolume && config.cache.enabled
+  }
+
+  // Levelling gain for a song from its cached measurement (0 if unknown),
+  // regardless of the on/off switch.
+  function gainFor(url) {
+    var entry = cached[Model.cacheRelPath(url)]
+    return entry ? Model.levelGain(entry.loudness, entry.peak) : 0
+  }
+
+  // Options shared by every track load: the media title and levelling gain.
+  function trackOptions(url, title) {
+    loadedGain = gainFor(url)
+    appliedGain = levelOn() ? loadedGain : 0
+    return "volume-gain=" + appliedGain + ",force-media-title=" + Model.mpvQuote(title)
+  }
+
+  function queueJob(job) {
+    var same = function(j) { return j.kind === job.kind && (j.url || j.rel) === (job.url || job.rel) }
+    if (downloadQueue.some(same) || (downloadProc.running && downloadProc.job && same(downloadProc.job))) return
+    downloadQueue = downloadQueue.concat([job])
+    pumpDownloads()
+  }
+
   function queueDownload(url) {
     var rel = Model.cacheRelPath(url)
     if (!config.cache.enabled || !rel || cached[rel]) return
-    if (downloadQueue.indexOf(url) >= 0 || (downloadProc.running && downloadProc.url === url)) return
-    downloadQueue = downloadQueue.concat([url])
-    pumpDownloads()
+    queueJob({ kind: "fetch", url: url })
   }
 
   function pumpDownloads() {
     if (downloadProc.running || downloadQueue.length === 0) return
-    var url = downloadQueue[0]
+    var job = downloadQueue[0]
     downloadQueue = downloadQueue.slice(1)
-    downloadProc.url = url
-    downloadProc.command = ["bash", fetchScript, url, cacheDir, Model.cacheRelPath(url), String(config.cache.limitMB * 1048576)]
+    downloadProc.job = job
+    downloadProc.command = job.kind === "measure"
+      ? ["bash", fetchScript, "measure", cacheDir, job.rel]
+      : ["bash", fetchScript, "fetch", job.url, cacheDir, Model.cacheRelPath(job.url), String(config.cache.limitMB * 1048576)]
     downloadProc.running = true
   }
 
   // In the last ten minutes of an hour, fetch the next hour's song so the
-  // hour change starts instantly.
+  // hour change starts instantly (and, if K.K. opens the hour, his song).
   function prefetchNextHour(d) {
     var next = new Date(d.getTime() + 15 * 60000)
     var key = Model.dateKey(next) + "|" + next.getHours()
     if (prefetchedFor === key) return
     prefetchedFor = key
+    if (Model.wantsBetween(config, next.getHours()) && !nextKK) prepareNextKK()
     if (Model.isKKTime(config, next)) return
     var g = Model.pickGame(config, Model.dateKey(next), next.getHours(), 0, 0, weather)
     if (g === Model.KK_ID) return
     queueDownload(Model.hourlyUrl(g, Model.trackWeather(g, weather), next.getHours()))
   }
 
+  // Line up K.K.'s next song now so it's cached (and levelled) when it starts.
+  function prepareNextKK() {
+    nextKK = Model.pickKK(config, Data.kkSongs, recentKK)
+    queueDownload(Model.kkUrl(nextKK.version, nextKK.song))
+  }
+
+  // The lined-up song if it's still allowed, else a fresh pick.
+  function takeNextKK() {
+    var n = nextKK
+    nextKK = null
+    var stillTicked = n && Model.kkVersionsFor(config, n.song).indexOf(n.version) >= 0
+    var repeat = n && recentKK.length > 0 && recentKK[recentKK.length - 1] === n.song
+    return stillTicked && !repeat ? n : Model.pickKK(config, Data.kkSongs, recentKK)
+  }
+
   function rescanCache() {
     if (cacheIndexProc.running) return
-    cacheIndexProc.command = ["find", cacheDir, "-type", "f", "-name", "*.ogg", "-printf", "%P\\n"]
+    cacheIndexProc.command = ["bash", fetchScript, "index", cacheDir]
     cacheIndexProc.running = true
   }
 
@@ -486,9 +534,17 @@ Item {
     cacheBytes = 0
   }
 
+  // Turning levelling on or off applies to the song that's playing right away.
+  function syncLevelGain() {
+    var gain = levelOn() ? loadedGain : 0
+    if (!mpvReady || gain === appliedGain) return
+    appliedGain = gain
+    send(["set_property", "volume-gain", gain])
+  }
+
   Process {
     id: downloadProc
-    property string url: ""
+    property var job: null
     onExited: function(exitCode) {
       root.rescanCache()
       root.pumpDownloads()
@@ -500,9 +556,17 @@ Item {
     stdout: StdioCollector {
       onStreamFinished: {
         var map = {}
-        text.split("\n").forEach(function(line) { if (line) map[line] = true })
+        var unmeasured = []
+        text.split("\n").forEach(function(line) {
+          var entry = Model.parseCacheLine(line)
+          if (!entry) return
+          map[entry.rel] = { loudness: entry.loudness, peak: entry.peak }
+          if (entry.loudness === null) unmeasured.push(entry.rel)
+        })
         root.cached = map
         root.refreshCacheSize()
+        // Songs cached before levelling existed (or whose measurement failed).
+        if (root.config.levelVolume) unmeasured.forEach(function(rel) { root.queueJob({ kind: "measure", rel: rel }) })
       }
     }
   }
@@ -542,6 +606,7 @@ Item {
   onConfigChanged: {
     syncSlot(new Date())
     syncVolume()
+    syncLevelGain()
     syncOtherMediaMode()
   }
   onHeldQuietChanged: syncVolume()
@@ -608,7 +673,7 @@ Item {
     lastError = ""
     loadedKey = trackKey
     if (betweenActive) {
-      startKK(Model.pickKK(config, Data.kkSongs, recentKK))
+      startKK(takeNextKK())
       notifyTrack("K.K. Slider", Model.kkTitle(kkSong) + ", then " + Model.hourLabel(hour))
       return
     }
@@ -620,9 +685,10 @@ Item {
     var opts = "loop-file=inf"
     if (loop && loop[1] > loop[0]) opts += ",ab-loop-a=" + loop[0] + ",ab-loop-b=" + loop[1]
     else opts += ",ab-loop-a=no,ab-loop-b=no"
+    var url = Model.hourlyUrl(game, trackWeather, hour)
     var title = Model.gameName(game) + " · " + Model.hourLabel(hour) + " · " + Model.weatherName(trackWeather)
-    opts += ",force-media-title=" + Model.mpvQuote(title)
-    send(["loadfile", sourceFor(Model.hourlyUrl(game, trackWeather, hour)), "replace", -1, opts])
+    opts += "," + trackOptions(url, title)
+    send(["loadfile", sourceFor(url), "replace", -1, opts])
     send(["set_property", "pause", !audible])
     restoreVolume()
     notifyTrack(Model.gameName(game), Model.hourLabel(hour) + " · " + Model.weatherName(trackWeather))
@@ -636,17 +702,18 @@ Item {
     kkVersionPlaying = choice.version
     lastError = ""
     send(["loadfile", sourceFor(Model.kkUrl(choice.version, choice.song)), "replace", -1, kkOptions(choice.song, choice.version)])
+    prepareNextKK()
     send(["set_property", "pause", !audible])
     restoreVolume()
   }
 
   function kkOptions(song, version) {
     var title = Model.kkTitle(song) + " · K.K. Slider (" + Model.versionName(version) + ")"
-    return "loop-file=no,ab-loop-a=no,ab-loop-b=no,force-media-title=" + Model.mpvQuote(title)
+    return "loop-file=no,ab-loop-a=no,ab-loop-b=no," + trackOptions(Model.kkUrl(version, song), title)
   }
 
   function playNextKK() {
-    startKK(Model.pickKK(config, Data.kkSongs, recentKK))
+    startKK(takeNextKK())
     notifyTrack("K.K. Slider", Model.kkTitle(kkSong))
   }
 

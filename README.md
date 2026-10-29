@@ -55,7 +55,8 @@ don't download again every day.
 - **Your choice at login:** start playing, wait for you to press play, or pick up where you left off.
 - **Media keys:** your keyboard's play/pause key, headset buttons, and Omarchy's media controls all work, with the game and hour as the track title.
 - **Sleep timer and quiet hours:** fade out after 15 minutes to an hour and a half, or pause (or turn down) the music at the same time every night and bring it back in the morning.
-- **Light on data:** recently played songs are kept in a small cache, and the next hour's song is fetched ahead of time, so the hour changes instantly.
+- **Even volume:** every song is brought to the same loudness, so quieter recordings (like the original game's K.K. airchecks) aren't drowned out and louder ones don't jump out.
+- **Light on data:** recently played songs are kept in a small cache, and the next song is fetched ahead of time, so the hour (or K.K.'s next song) starts instantly.
 - **Fits Omarchy:** uses Omarchy's own panel styling, follows your theme, and works with any bar position.
 - **Scriptable:** a small `ac-music` command for terminals and keybinds.
 
@@ -67,10 +68,11 @@ omarchy plugin add https://github.com/NinDaniel/omarchy-ac-music --enable
 
 The leaf appears on the right side of your bar and the music starts.
 
-**Requirements:** `mpv` and `curl`, plus `mpv-mpris` for [media keys](#media-keys) and
-`notify-send` for track notifications. All four come with Omarchy, so there's
-nothing extra to install. Without `mpv-mpris` or `notify-send`, everything
-else still works.
+**Requirements:** `mpv` and `curl`, plus `ffmpeg` for [even volume](#even-out-volume),
+`mpv-mpris` for [media keys](#media-keys), and `notify-send` for track
+notifications. All of them come with Omarchy (`ffmpeg` is installed along with
+`mpv`), so there's nothing extra to install. Without any of the last three,
+everything else still works.
 
 **Moving the leaf:** drag it along the bar like any other widget, or run:
 
@@ -287,6 +289,21 @@ that.
 |-------------------------|--------------|
 | **Fade between tracks** | Fades the old song out over about a second and a half when the hour, weather, or game changes. Off means an instant switch. |
 | **Notify on new track** | Shows a desktop notification with the game and hour (or K.K. song) whenever the music changes. Off by default. |
+| **Even out volume**     | Brings every song to the same loudness. On by default; see below. |
+
+#### Even out volume
+
+The songs on the music server weren't all recorded at the same level. Most sit
+close together, but some stand out: the original game's K.K. airchecks are
+about 8 to 12 dB quieter than everything else (roughly half as loud to the
+ear), and a few songs are noticeably louder. **Even out volume** fixes that by
+measuring each song's loudness and turning it up or down to a common level,
+the way music apps' "normalize volume" works.
+
+- Each song is measured once, on your computer, right after it lands in the [song cache](#song-cache), so levelling needs the cache to be on. Songs that were already cached are measured in the background.
+- The adjustment is applied as the song plays, and the song file itself is never changed. Switching levelling off or on takes effect on the song that's playing straight away.
+- Quiet songs are only boosted as far as they can go without distorting, and adjustments are limited to 12 dB either way. The hourly themes are already close to the common level, so they barely change.
+- Because the next song is fetched ahead of time (the next hour's theme near the end of each hour, and K.K.'s next song while the current one plays), nearly everything is cached and measured before it starts. The exceptions play at their original level: the first song after the music starts, if it isn't cached yet, and previews of songs that aren't cached.
 
 #### When other media plays
 
@@ -340,6 +357,9 @@ gentle wake-up. If you paused the music yourself, it stays paused.
 Songs you've heard are kept in `~/.cache/ac-music`, so the same hour's theme
 isn't downloaded again every day. In the last ten minutes of each hour, the
 next hour's song is fetched ahead of time, so the hour change starts instantly.
+During K.K., his next song is fetched while the current one plays. Each song is
+also measured for [even volume](#even-out-volume) when it arrives; the result
+is stored next to it as a tiny `.gain` file.
 
 - **Keep recent songs on disk:** on by default. Off means every song streams fresh.
 - **Size limit:** 100 MB, 300 MB (default), 500 MB, or 1 GB. Once it's full, the songs played least recently are deleted first. A typical song is 3 to 7 MB, so 300 MB holds around 60.
@@ -427,6 +447,7 @@ Anything missing or invalid falls back to its default.
 | `kk.off`              | list of unticked versions as `"version/song"`, like `"aircheck/AC - K.K. Aria"` | every aircheck |
 | `fade`           | `true` / `false` | `true` |
 | `notify`         | `true` / `false` | `false` |
+| `levelVolume`    | `true` / `false` (even out volume) | `true` |
 | `otherMedia`     | `pause`, `lower`, `ignore` | `pause` |
 | `quiet.enabled`  | `true` / `false` | `false` |
 | `quiet.start`    | `0` to `23` (hour) | `23` |
@@ -496,8 +517,9 @@ The plugin talks to three services:
 
 - **acmusicext.com:** the music itself, one song (usually 3 to 7 MB) at a time.
   With the [song cache](#song-cache) on, each song downloads once and replays
-  from disk until it's trimmed, and the next hour's song is fetched in the last
-  ten minutes of the hour. With it off, a song downloads every time it starts:
+  from disk until it's trimmed. The next hour's song is fetched in the last
+  ten minutes of the hour, and during K.K. his next song is fetched while the
+  current one plays. With it off, a song downloads every time it starts:
   hourly, at every switch in *Every few minutes* mode, once per K.K. song, and
   once per preview. Loops always replay from memory. K.K. album covers (about
   20 KB each) load when the panel shows them.

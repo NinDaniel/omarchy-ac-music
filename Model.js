@@ -114,6 +114,8 @@ function defaultConfig() {
     },
     fade: true,
     notify: false,
+    // Even out loudness between songs, using measurements of cached songs.
+    levelVolume: true,
     // Each day from `start` to `end` (hours, same rules as concerts), either
     // pause the music or turn it down; it comes back when they end.
     quiet: { enabled: false, start: 23, end: 7, mode: "pause" },
@@ -243,6 +245,7 @@ function normalizeConfig(raw) {
     kk: normalizeKK(c.kk),
     fade: bool(c.fade, d.fade),
     notify: bool(c.notify, d.notify),
+    levelVolume: bool(c.levelVolume, d.levelVolume),
     quiet: normalizeQuiet(c.quiet),
     cache: normalizeCache(c.cache),
     atLogin: pick(c.atLogin, ["play", "wait", "resume"], d.atLogin),
@@ -492,6 +495,36 @@ function kkUrl(version, song) {
 function cacheRelPath(url) {
   var prefix = BASE_URL + "/"
   return url.indexOf(prefix) === 0 ? decodeURIComponent(url.substring(prefix.length)) : ""
+}
+
+// ---- Volume levelling ----------------------------------------------------
+
+// Loudness every song is brought to. The hourly themes already sit near it;
+// it mostly lifts the quiet airchecks and tames the odd loud one.
+var LEVEL_TARGET = -18
+var LEVEL_MAX_DB = 12
+
+// Gain (dB) for a song measured at `loudness` LUFS with `peak` dBTP. Boosts
+// stop before the peak passes -1 dBTP, so levelling never clips.
+function levelGain(loudness, peak) {
+  if (typeof loudness !== "number" || isNaN(loudness)) return 0
+  var gain = LEVEL_TARGET - loudness
+  if (gain > 0 && typeof peak === "number" && !isNaN(peak)) gain = Math.min(gain, Math.max(0, -1 - peak))
+  gain = Math.max(-LEVEL_MAX_DB, Math.min(LEVEL_MAX_DB, gain))
+  return Math.round(gain * 10) / 10
+}
+
+// One line of `song-cache index`: "rel<TAB>loudness<TAB>peak" (last two may be empty).
+function parseCacheLine(line) {
+  var parts = String(line).split("\t")
+  if (!parts[0]) return null
+  var loudness = parseFloat(parts[1])
+  var peak = parseFloat(parts[2])
+  return {
+    rel: parts[0],
+    loudness: isNaN(loudness) ? null : loudness,
+    peak: isNaN(peak) ? null : peak
+  }
 }
 
 // mpv's escaping for a value inside a key=value option list: %<bytes>%value.

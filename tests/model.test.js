@@ -236,3 +236,22 @@ test("mpv option quoting counts UTF-8 bytes", () => {
   assert.equal(Model.mpvQuote("abc"), "%3%abc")
   assert.equal(Model.mpvQuote("a · b"), "%6%a · b")
 })
+
+// ---- Volume levelling ----------------------------------------------------
+
+test("levelling lifts quiet songs, tames loud ones, and never clips", () => {
+  assert.equal(Model.levelGain(-26.4, -13.0), 8.4, "quiet aircheck gets lifted to the target")
+  assert.equal(Model.levelGain(-28.7, -13.0), 10.7)
+  assert.equal(Model.levelGain(-12.8, 0.3), -5.2, "loud song comes down")
+  assert.equal(Model.levelGain(-22, -2), 1, "a boost stops at -1 dBTP peak")
+  assert.equal(Model.levelGain(-20, 0.5), 0, "no headroom, no boost (but no cut either)")
+  assert.equal(Model.levelGain(-40, -30), 12, "capped at +12 dB")
+  assert.equal(Model.levelGain(null, null), 0, "unmeasured songs play as they are")
+  assert.equal(Model.normalizeConfig({}).levelVolume, true)
+})
+
+test("cache index lines parse with and without measurements", () => {
+  assert.deepEqual(Model.parseCacheLine("kk/live/NH - Drivin'.ogg\t-19.4\t-0.9"), { rel: "kk/live/NH - Drivin'.ogg", loudness: -19.4, peak: -0.9 })
+  assert.deepEqual(Model.parseCacheLine("new-leaf/sunny/1am.ogg\t"), { rel: "new-leaf/sunny/1am.ogg", loudness: null, peak: null })
+  assert.equal(Model.parseCacheLine(""), null)
+})

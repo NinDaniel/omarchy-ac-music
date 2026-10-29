@@ -1,0 +1,68 @@
+#!/bin/bash
+# The AC Hourly Music song cache (~/.cache/ac-music by default).
+#
+#   song-cache fetch <url> <dir> <rel> <limit-bytes>
+#       Download one song to <dir>/<rel>, measure its loudness, then trim the
+#       cache to its size limit, least recently played songs first.
+#   song-cache measure <dir> <rel>
+#       Measure a cached song that has no loudness file yet.
+#   song-cache index <dir>
+#       List cached songs, one per line: <rel> TAB <loudness LUFS> TAB <true peak dB>
+#       (the last two are empty when a song hasn't been measured).
+#
+# Loudness is stored next to each song as "<song>.ogg.gain" holding
+# "<integrated LUFS> <true peak dBTP>", measured with ffmpeg's EBU R128 filter.
+
+set -u
+
+measure() {
+  local file=$1 out loudness peak
+  command -v ffmpeg >/dev/null || return 0
+  out=$(ffmpeg -nostats -hide_banner -i "$file" -af ebur128=peak=true -f null - 2>&1) || return 1
+  loudness=$(awk '/Integrated loudness:/ { f = 1 } f && /I:/ { print $2; exit }' <<<"$out")
+  peak=$(awk '/True peak:/ { f = 1 } f && /Peak:/ { print $2; exit }' <<<"$out")
+  [[ $loudness =~ ^-?[0-9.]+$ && $peak =~ ^-?[0-9.]+$ ]] || return 1
+  printf '%s %s\n' "$loudness" "$peak" >"$file.gain.part" && mv -f "$file.gain.part" "$file.gain"
+}
+
+case ${1:-} in
+  fetch)
+    url=$2 dir=$3 rel=$4 cap=$5
+    dest="$dir/$rel"
+    mkdir -p "$(dirname "$dest")" || exit 1
+
+    # Download to a .part file so a cut-off download is never played as a song.
+    if ! curl -fsS --max-time 180 -o "$dest.part" "$url"; then
+      rm -f "$dest.part"
+      exit 1
+    fi
+    mv -f "$dest.part" "$dest"
+    measure "$dest"
+
+    # Newest first (playing a cached song touches it); delete once over the cap.
+    find "$dir" -type f -name '*.ogg' -printf '%T@\t%s\t%p\n' \
+      | sort -rn \
+      | awk -F'\t' -v cap="$cap" '{ total += $2; if (total > cap) print $3 }' \
+      | while IFS= read -r old; do rm -f -- "$old" "$old.gain"; done
+    ;;
+
+  measure)
+    measure "$2/$3"
+    ;;
+
+  index)
+    dir=$2
+    [[ -d $dir ]] || exit 0
+    cd "$dir" || exit 1
+    find . -type f -name '*.ogg' -printf '%P\n' | while IFS= read -r rel; do
+      gain=""
+      [[ -f "$rel.gain" ]] && read -r gain <"$rel.gain"
+      printf '%s\t%s\n' "$rel" "${gain/ /$'\t'}"
+    done
+    ;;
+
+  *)
+    echo "usage: song-cache fetch|measure|index ..." >&2
+    exit 2
+    ;;
+esac
