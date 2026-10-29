@@ -59,6 +59,15 @@ Panel {
   }
   onViewChanged: if (panelFlick) panelFlick.contentY = 0
 
+  function randomModeCaption() {
+    if (cfg.randomMode === "daily")
+      return "One game plays all day, so you might get New Leaf from midnight to midnight. "
+        + "If that game is unticked for an hour above, that hour picks from its ticked games instead."
+    if (cfg.randomMode === "interval")
+      return "Every few minutes it switches to a different game's version of the current hour's song. Choose how often:"
+    return "Each hour picks a game from the ones ticked for it above."
+  }
+
   function holdText() {
     if (!svc) return ""
     var verb = cfg.otherMedia === "lower" ? "Quieter" : "Paused"
@@ -359,11 +368,21 @@ Panel {
             fontFamily: root.fontFamily
             focusable: false
             options: [
-              { value: "hourly", label: "Every hour" },
-              { value: "daily", label: "Once a day" },
-              { value: "interval", label: "Every few minutes", tooltip: "Switch to a different game's version of this hour's song" }
+              { value: "hourly", label: "Every hour", tooltip: "A new game each hour" },
+              { value: "daily", label: "Once a day", tooltip: "One game all day, from midnight to midnight" },
+              { value: "interval", label: "Every few minutes", tooltip: "Switch between games' versions of this hour's song" }
             ]
             onChanged: function(v) { if (root.svc) root.svc.update({ randomMode: v }) }
+          }
+
+          Text {
+            visible: root.view === "settings"
+            width: parent.width
+            text: root.randomModeCaption()
+            color: root.dim
+            wrapMode: Text.WordWrap
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
           }
 
           ButtonGroup {
