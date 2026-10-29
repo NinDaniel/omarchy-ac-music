@@ -8,7 +8,9 @@ with the rain and snow versions, mix the four games together, step aside
 when you play something else, and bring in K.K. Slider: for concerts on your
 own schedule, as part of the hourly mix, or for one song as each hour begins.
 
-Nothing is stored on your machine. Tracks stream on demand.
+There's nothing to download up front: tracks stream as they play, and the ones
+you've heard recently are kept in a small cache (300 MB by default) so they
+don't download again every day.
 
 > Inspired by, and streaming its music from, the
 > [Animal Crossing Music extension](https://github.com/animal-crossing-music-extension/ac-music-extension).
