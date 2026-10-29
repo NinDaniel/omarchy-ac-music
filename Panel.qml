@@ -146,11 +146,13 @@ Panel {
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
         interactive: contentHeight > height
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        ScrollBar.vertical: ScrollBar { id: vbar; policy: ScrollBar.AsNeeded }
 
         Column {
           id: column
-          width: panelFlick.width
+          // When the page scrolls, leave a lane for the scroll bar so it
+          // never sits on top of buttons at the right edge.
+          width: panelFlick.width - (panelFlick.interactive ? vbar.width + Style.space(8) : 0)
           spacing: Style.space(12)
 
           // ================= Main view =================
