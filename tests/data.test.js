@@ -32,7 +32,7 @@ test("loop points: every game, valid hours, start before end", () => {
 test("manifest: valid, versioned, entry points exist", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"))
   assert.equal(manifest.schemaVersion, 1)
-  assert.equal(manifest.id, "danr.ac-music")
+  assert.equal(manifest.id, "io.github.nindaniel.ac-music")
   assert.match(manifest.version, /^\d+\.\d+\.\d+$/)
   for (const entry of Object.values(manifest.entryPoints)) assert.ok(fs.existsSync(path.join(root, entry)), entry)
 })

@@ -11,14 +11,14 @@ import "bridge" as AcBridge
 // (per monitor); all of them drive the single Service instance.
 Panel {
   id: root
-  moduleName: "danr.ac-music"
+  moduleName: "io.github.nindaniel.ac-music"
   // One widget per monitor, so no per-widget IPC target; the service owns
-  // "danr.ac-music" and `omarchy-shell shell toggle danr.ac-music` opens this.
+  // "io.github.nindaniel.ac-music" and `omarchy-shell shell toggle io.github.nindaniel.ac-music` opens this.
   manageIpc: false
 
   readonly property var svc: {
     var viaHost = bar && bar.shell && typeof bar.shell.serviceFor === "function"
-      ? bar.shell.serviceFor("danr.ac-music") : null
+      ? bar.shell.serviceFor("io.github.nindaniel.ac-music") : null
     return viaHost || AcBridge.Bridge.service
   }
   readonly property var cfg: svc ? svc.config : Model.defaultConfig()

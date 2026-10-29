@@ -67,12 +67,15 @@ omarchy plugin add https://github.com/NinDaniel/omarchy-ac-music --enable
 
 The leaf appears on the right side of your bar and the music starts.
 
-**Requirements:** `mpv` and `curl`. Both come with Omarchy.
+**Requirements:** `mpv` and `curl`, plus `mpv-mpris` for [media keys](#media-keys) and
+`notify-send` for track notifications. All four come with Omarchy, so there's
+nothing extra to install. Without `mpv-mpris` or `notify-send`, everything
+else still works.
 
 **Moving the leaf:** drag it along the bar like any other widget, or run:
 
 ```bash
-omarchy bar move danr.ac-music --section left    # left | center | right
+omarchy bar move io.github.nindaniel.ac-music --section left    # left | center | right
 ```
 
 ## The bar icon
@@ -369,7 +372,7 @@ Animal Crossing Music extension. Links open in your browser.
 The plugin includes a small `ac-music` command. To put it on your PATH:
 
 ```bash
-ln -s ~/.config/omarchy/plugins/danr.ac-music/bin/ac-music ~/.local/bin/ac-music
+ln -s ~/.config/omarchy/plugins/io.github.nindaniel.ac-music/bin/ac-music ~/.local/bin/ac-music
 ```
 
 | Command                    | What it does |
@@ -389,8 +392,8 @@ ln -s ~/.config/omarchy/plugins/danr.ac-music/bin/ac-music ~/.local/bin/ac-music
 | `ac-music settings`        | Open the panel on Settings |
 
 Without the symlink, every command also works as
-`omarchy-shell danr.ac-music <command> [arg]` (for example
-`omarchy-shell danr.ac-music toggle`).
+`omarchy-shell io.github.nindaniel.ac-music <command> [arg]` (for example
+`omarchy-shell io.github.nindaniel.ac-music toggle`).
 
 Example keybinds for `~/.config/hypr/bindings.lua`:
 
@@ -450,7 +453,7 @@ Song names for `kk.off` are listed in `Data.js`.
 Update:
 
 ```bash
-omarchy plugin update danr.ac-music
+omarchy plugin update io.github.nindaniel.ac-music
 omarchy restart shell
 ```
 
@@ -460,14 +463,14 @@ in the background and only picks up new code when the shell restarts.
 Uninstall:
 
 ```bash
-omarchy plugin remove danr.ac-music
+omarchy plugin remove io.github.nindaniel.ac-music
 rm ~/.config/omarchy/ac-music.json    # optional: your settings
 rm -rf ~/.cache/ac-music               # optional: cached songs
 ```
 
 ## Troubleshooting
 
-**No sound.** Run `ac-music status` (or `omarchy-shell danr.ac-music status`).
+**No sound.** Run `ac-music status` (or `omarchy-shell io.github.nindaniel.ac-music status`).
 If it says *Playing*, check that the volume slider isn't at 0%, and look for
 **AC Music** in your audio mixer; it appears there as its own app with its own
 volume. If it says *On hold*, another player is playing. Pause it, or switch
@@ -485,7 +488,7 @@ Weather location. Set the right one in Omarchy's weather widget.
 player Omarchy considers active. Pause the other player, or use
 `ac-music toggle` on a keybind of your own.
 
-**The leaf is missing from the bar.** Run `omarchy plugin enable danr.ac-music --section right`.
+**The leaf is missing from the bar.** Run `omarchy plugin enable io.github.nindaniel.ac-music --section right`.
 
 ## Network and privacy
 
@@ -521,7 +524,7 @@ GitHub runs the same tests on every push and pull request
 syntax check of the shell scripts and the manifest. `omarchy plugin validate .`
 checks the plugin the way Omarchy will.
 
-To work on a local copy, clone it into `~/.config/omarchy/plugins/danr.ac-music`.
+To work on a local copy, clone it into `~/.config/omarchy/plugins/io.github.nindaniel.ac-music`.
 Changes to the panel reload on their own. Changes to `Service.qml` or the
 JavaScript files need `omarchy restart shell`.
 

@@ -16,10 +16,12 @@ Item {
 
   readonly property string home: Quickshell.env("HOME")
   readonly property string configPath: home + "/.config/omarchy/ac-music.json"
-  readonly property string socketPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/danr-ac-music.sock"
-  // Lives in the runtime dir, which is wiped at logout: missing means this is
-  // a fresh login rather than a shell restart.
-  readonly property string sessionMarkerPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/danr-ac-music.session"
+  // The per-user runtime folder (private, wiped at logout). Without one, use
+  // the plugin's own cache folder rather than the shared /tmp.
+  readonly property string runtimeDir: Quickshell.env("XDG_RUNTIME_DIR") || cacheDir
+  readonly property string socketPath: runtimeDir + "/io.github.nindaniel.ac-music.sock"
+  // Missing means this is a fresh login rather than a shell restart.
+  readonly property string sessionMarkerPath: runtimeDir + "/io.github.nindaniel.ac-music.session"
 
   property var config: Model.defaultConfig()
   property bool configLoaded: false
@@ -915,10 +917,10 @@ Item {
     }
   }
 
-  // ---- CLI / keybinds: omarchy-shell danr.ac-music <method> ----------------
+  // ---- CLI / keybinds: omarchy-shell io.github.nindaniel.ac-music <method> ----------------
 
   IpcHandler {
-    target: "danr.ac-music"
+    target: "io.github.nindaniel.ac-music"
 
     function toggle(): string { root.togglePlaying(); return root.config.playing ? "playing" : "paused" }
     function play(): string { root.setPlaying(true); return "playing" }

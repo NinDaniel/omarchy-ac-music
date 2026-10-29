@@ -25,22 +25,22 @@ USAGE
 cmd=${1:-}
 case $cmd in
   toggle | play | pause | next | status)
-    exec omarchy-shell danr.ac-music "$cmd" ;;
+    exec omarchy-shell io.github.nindaniel.ac-music "$cmd" ;;
   game | weather | volume)
     [[ -n ${2:-} ]] || { usage; exit 1; }
-    exec omarchy-shell danr.ac-music "$cmd" "$2" ;;
+    exec omarchy-shell io.github.nindaniel.ac-music "$cmd" "$2" ;;
   kk)
-    exec omarchy-shell danr.ac-music kk "${2:-toggle}" ;;
+    exec omarchy-shell io.github.nindaniel.ac-music kk "${2:-toggle}" ;;
   sleep)
     [[ -n ${2:-} ]] || { usage; exit 1; }
-    exec omarchy-shell danr.ac-music sleep "$2" ;;
+    exec omarchy-shell io.github.nindaniel.ac-music sleep "$2" ;;
   clear-cache)
-    exec omarchy-shell danr.ac-music clearCache ;;
+    exec omarchy-shell io.github.nindaniel.ac-music clearCache ;;
   panel)
-    exec omarchy-shell shell toggle danr.ac-music ;;
+    exec omarchy-shell shell toggle io.github.nindaniel.ac-music ;;
   settings)
-    omarchy-shell danr.ac-music requestView settings >/dev/null
-    exec omarchy-shell shell summon danr.ac-music ;;
+    omarchy-shell io.github.nindaniel.ac-music requestView settings >/dev/null
+    exec omarchy-shell shell summon io.github.nindaniel.ac-music ;;
   -h | --help | help | "")
     usage ;;
   *)
