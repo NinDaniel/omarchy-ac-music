@@ -17,7 +17,9 @@ Nothing is downloaded to your machine; tracks stream on demand.
 - **Random every hour, or one game per day.**
 - **K.K. Slider:** Saturday night concerts from 8 PM until midnight, or K.K. all the time. Choose live, aircheck, or both versions.
 - **Seamless loops:** songs loop at the game's loop points instead of restarting the intro.
-- Fades between tracks, optional notifications, and remembers whether it was playing when you log back in.
+- **Steps aside for other media:** when YouTube Music, Spotify, a video, or any other media player starts, the music pauses (or drops its volume) and comes back on its own a few seconds after that stops.
+- **Your choice at login:** start playing automatically, wait for you to press play, or pick up where you left off.
+- Fades between tracks and can show a notification when the track changes.
 
 ## Install
 

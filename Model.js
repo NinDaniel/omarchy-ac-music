@@ -52,7 +52,11 @@ function defaultConfig() {
     hours: allHours(),
     kk: { saturday: true, always: false, version: "live" },
     fade: true,
-    notify: false
+    notify: false,
+    // What happens at login: "play", "wait" (stay paused), or "resume".
+    atLogin: "play",
+    // When another media player plays: "pause", "lower", or "ignore".
+    otherMedia: "pause"
   }
 }
 
@@ -92,7 +96,9 @@ function normalizeConfig(raw) {
       version: pick(kk.version, KK_VERSIONS, d.kk.version)
     },
     fade: bool(c.fade, d.fade),
-    notify: bool(c.notify, d.notify)
+    notify: bool(c.notify, d.notify),
+    atLogin: pick(c.atLogin, ["play", "wait", "resume"], d.atLogin),
+    otherMedia: pick(c.otherMedia, ["pause", "lower", "ignore"], d.otherMedia)
   }
 }
 

@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.Mpris
 import "Model.js" as Model
 import "Data.js" as Data
 import "bridge" as AcBridge
@@ -16,9 +17,14 @@ Item {
   readonly property string home: Quickshell.env("HOME")
   readonly property string configPath: home + "/.config/omarchy/ac-music.json"
   readonly property string socketPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/danr-ac-music.sock"
+  // Lives in the runtime dir, which is wiped at logout: missing means this is
+  // a fresh login rather than a shell restart.
+  readonly property string sessionMarkerPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/danr-ac-music.session"
 
   property var config: Model.defaultConfig()
   property bool configLoaded: false
+  property int sessionState: 0  // 0 unknown, 1 fresh login, 2 shell restart
+  property bool loginApplied: false
 
   // ---- Clock ----
   property var now: new Date()
@@ -37,13 +43,20 @@ Item {
   // ---- What should be playing ----
   property int salt: 0
   readonly property bool playing: config.playing
+  // Other media players (MPRIS) can hold us: paused or quieter until they stop.
+  property bool otherMediaHold: false
+  property string otherMediaName: ""
+  readonly property bool heldPaused: otherMediaHold && config.otherMedia === "pause"
+  readonly property bool heldQuiet: otherMediaHold && config.otherMedia === "lower"
+  // Actually making sound: the user wants music and nothing is holding it.
+  readonly property bool audible: playing && !heldPaused
   readonly property bool kkActive: Model.isKKTime(config, now)
   readonly property string game: Model.pickGame(config, day, hour, salt)
   readonly property string trackWeather: Model.trackWeather(game, weather)
   // Changing this string is what triggers a track change. Waiting for the
   // first weather answer (briefly) avoids playing sunny music for a second
   // and then swapping to rain.
-  readonly property bool ready: configLoaded && (!autoWeather || liveWeather !== "" || weatherGrace.expired)
+  readonly property bool ready: configLoaded && loginApplied && (!autoWeather || liveWeather !== "" || weatherGrace.expired)
   readonly property string trackKey: !ready ? "" : (kkActive ? "kk|" + config.kk.version : game + "|" + trackWeather + "|" + hour)
 
   // ---- Now playing (for the UI) ----
@@ -139,6 +152,89 @@ Item {
     }
   }
 
+  // ---- Login behavior ----------------------------------------------------
+
+  FileView {
+    id: sessionMarker
+    path: root.sessionMarkerPath
+    printErrors: false
+    onLoaded: root.sessionState = 2
+    onLoadFailed: {
+      root.sessionState = 1
+      setText("1\n")
+    }
+  }
+
+  onConfigLoadedChanged: applyLogin()
+  onSessionStateChanged: applyLogin()
+
+  function applyLogin() {
+    if (loginApplied || !configLoaded || sessionState === 0) return
+    if (sessionState === 1 && config.atLogin !== "resume") {
+      var wanted = config.atLogin === "play"
+      if (config.playing !== wanted) update({ playing: wanted })
+    }
+    loginApplied = true
+  }
+
+  // ---- Other media -------------------------------------------------------
+
+  readonly property var mprisPlayers: Mpris.players ? Mpris.players.values : []
+  onMprisPlayersChanged: checkOtherMedia()
+
+  Instantiator {
+    model: root.mprisPlayers
+    delegate: Connections {
+      required property var modelData
+      target: modelData
+      function onIsPlayingChanged() { root.checkOtherMedia() }
+    }
+  }
+
+  function playingOtherPlayer() {
+    for (var i = 0; i < mprisPlayers.length; i++) {
+      var p = mprisPlayers[i]
+      if (p && p.isPlaying) return p
+    }
+    return null
+  }
+
+  // Step aside quickly when something starts; come back only after it has
+  // been quiet for a few seconds, so gaps between songs don't bounce us.
+  function checkOtherMedia() {
+    var p = config.otherMedia === "ignore" ? null : playingOtherPlayer()
+    if (p) {
+      otherMediaName = p.identity || p.desktopEntry || "another player"
+      releaseTimer.stop()
+      if (!otherMediaHold) holdTimer.restart()
+    } else {
+      holdTimer.stop()
+      if (otherMediaHold) releaseTimer.restart()
+    }
+  }
+
+  function syncOtherMediaMode() {
+    if (config.otherMedia !== "ignore") {
+      checkOtherMedia()
+      return
+    }
+    holdTimer.stop()
+    releaseTimer.stop()
+    otherMediaHold = false
+  }
+
+  Timer {
+    id: holdTimer
+    interval: 400
+    onTriggered: root.otherMediaHold = true
+  }
+
+  Timer {
+    id: releaseTimer
+    interval: 3000
+    onTriggered: root.otherMediaHold = false
+  }
+
   // ---- Clock -------------------------------------------------------------
 
   Timer {
@@ -157,8 +253,12 @@ Item {
   // ---- Playback ----------------------------------------------------------
 
   onTrackKeyChanged: if (trackKey !== "") Qt.callLater(syncTrack)
-  onPlayingChanged: syncPause()
-  onConfigChanged: syncVolume()
+  onAudibleChanged: syncPause()
+  onConfigChanged: {
+    syncVolume()
+    syncOtherMediaMode()
+  }
+  onHeldQuietChanged: syncVolume()
 
   function send(args) {
     var line = JSON.stringify({ command: args }) + "\n"
@@ -178,7 +278,7 @@ Item {
   }
 
   function targetVolume() {
-    return Math.round(config.volume * 100)
+    return Math.round(config.volume * (heldQuiet ? 0.25 : 1) * 100)
   }
 
   function syncVolume() {
@@ -191,7 +291,7 @@ Item {
 
   function syncPause() {
     if (!configLoaded) return
-    if (!playing) {
+    if (!audible) {
       if (mpvProc.running) send(["set_property", "pause", true])
       return
     }
@@ -206,7 +306,7 @@ Item {
   // track first when it is audible.
   function syncTrack() {
     if (trackKey === "" || trackKey === loadedKey) return
-    if (!playing) {
+    if (!audible) {
       // Load nothing while paused; resuming will pick up the right track.
       return
     }
@@ -227,7 +327,7 @@ Item {
     if (loop && loop[1] > loop[0]) opts += ",ab-loop-a=" + loop[0] + ",ab-loop-b=" + loop[1]
     else opts += ",ab-loop-a=no,ab-loop-b=no"
     send(["loadfile", Model.hourlyUrl(game, trackWeather, hour), "replace", -1, opts])
-    send(["set_property", "pause", !playing])
+    send(["set_property", "pause", !audible])
     restoreVolume()
     notifyTrack(Model.gameName(game), Model.hourLabel(hour) + " · " + Model.weatherName(trackWeather))
   }
@@ -242,7 +342,7 @@ Item {
     kkVersionPlaying = version
     lastError = ""
     send(["loadfile", Model.kkUrl(version, song), "replace", -1, "loop-file=no,ab-loop-a=no,ab-loop-b=no"])
-    send(["set_property", "pause", !playing])
+    send(["set_property", "pause", !audible])
     restoreVolume()
     notifyTrack("K.K. Slider", Model.kkTitle(song))
   }
@@ -254,7 +354,7 @@ Item {
   }
 
   function notifyTrack(summary, body) {
-    if (!config.notify || !playing) return
+    if (!config.notify || !audible) return
     Quickshell.execDetached(["notify-send", "-a", "AC Music", "-i", "audio-x-generic", summary, body])
   }
 
@@ -304,6 +404,8 @@ Item {
     command: [
       "mpv",
       "--no-config",
+      // No mpris script either, so our own mpv never shows up as "other media".
+      "--load-scripts=no",
       "--idle=yes",
       "--no-video",
       "--no-terminal",
@@ -468,7 +570,8 @@ Item {
     function next(): string { root.next(); return "ok" }
     function requestView(view: string): string { root.requestedView = view; return "ok" }
     function status(): string {
-      return (root.playing ? "Playing" : "Paused") + ": " + root.title + " - " + root.subtitle
+      var state = !root.playing ? "Paused" : (root.heldPaused ? "On hold for " + root.otherMediaName : (root.heldQuiet ? "Quieter for " + root.otherMediaName : "Playing"))
+      return state + ": " + root.title + " - " + root.subtitle
     }
     function game(id: string): string {
       if (id !== "random" && Model.GAME_IDS.indexOf(id) < 0) return "unknown game: " + id + " (try " + Model.GAME_IDS.join(", ") + ", random)"

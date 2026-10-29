@@ -23,6 +23,8 @@ Panel {
   }
   readonly property var cfg: svc ? svc.config : Model.defaultConfig()
   readonly property bool playing: !!svc && svc.playing
+  readonly property bool audible: !!svc && svc.audible
+  readonly property bool held: !!svc && svc.otherMediaHold && cfg.otherMedia !== "ignore"
 
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color dim: Qt.darker(foreground, 1.55)
@@ -53,6 +55,12 @@ Panel {
   }
   onViewChanged: if (panelFlick) panelFlick.contentY = 0
 
+  function holdText() {
+    if (!svc) return ""
+    var verb = cfg.otherMedia === "lower" ? "Quieter" : "Paused"
+    return verb + " while " + svc.otherMediaName + " plays"
+  }
+
   function weatherCaption() {
     if (!svc) return ""
     if (cfg.weather !== "auto") return "Weather locked to " + Model.weatherName(cfg.weather).toLowerCase()
@@ -68,14 +76,14 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
-    tooltipText: root.svc ? (root.playing ? "" : "Paused · ") + root.svc.title + " · " + root.svc.subtitle : "AC Hourly Music"
+    tooltipText: root.svc ? (root.playing ? (root.held ? root.holdText() + " · " : "") : "Paused · ") + root.svc.title + " · " + root.svc.subtitle : "AC Hourly Music"
     iconComponent: Component {
       Item {
         LeafIcon {
           anchors.centerIn: parent
           iconSize: Style.space(15)
           color: root.barForeground
-          opacity: root.playing ? 1.0 : 0.45
+          opacity: root.audible && !root.svc.heldQuiet ? 1.0 : 0.45
         }
       }
     }
@@ -139,10 +147,10 @@ Panel {
             width: parent.width
             title: root.svc ? root.svc.title : "AC Hourly Music"
             meta: root.svc ? root.svc.subtitle : "Starting…"
-            detail: root.playing ? "" : "Paused"
+            detail: !root.playing ? "Paused" : (root.held ? "On hold" : "")
             foreground: root.foreground
             fontFamily: root.fontFamily
-            iconOpacity: root.playing ? 1.0 : 0.5
+            iconOpacity: root.audible ? 1.0 : 0.5
             iconComponent: Component {
               LeafIcon {
                 iconSize: Style.font.display * 1.3
@@ -235,6 +243,16 @@ Panel {
             width: parent.width
             text: root.weatherCaption()
             color: root.dim
+            wrapMode: Text.WordWrap
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          Text {
+            visible: root.view === "main" && root.playing && root.held
+            width: parent.width
+            text: root.holdText() + ". It comes back on its own when that stops."
+            color: root.accent
             wrapMode: Text.WordWrap
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
@@ -404,6 +422,50 @@ Panel {
             foreground: root.foreground
             fontFamily: root.fontFamily
             onClicked: root.svc.update({ notify: !root.cfg.notify })
+          }
+
+          PanelSectionHeader { visible: root.view === "settings"; text: "WHEN OTHER MEDIA PLAYS"; foreground: root.foreground; fontFamily: root.fontFamily }
+
+          Text {
+            visible: root.view === "settings"
+            width: parent.width
+            text: "YouTube Music, Spotify, a video in your browser, or any other media player. The music comes back a few seconds after it stops."
+            color: root.dim
+            wrapMode: Text.WordWrap
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          ButtonGroup {
+            visible: root.view === "settings"
+            spacing: Style.space(6)
+            value: root.cfg.otherMedia
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            focusable: false
+            options: [
+              { value: "pause", label: "Pause" },
+              { value: "lower", label: "Lower volume", tooltip: "Drop to a quarter of your volume" },
+              { value: "ignore", label: "Keep playing" }
+            ]
+            onChanged: function(v) { if (root.svc) root.svc.update({ otherMedia: v }) }
+          }
+
+          PanelSectionHeader { visible: root.view === "settings"; text: "WHEN I LOG IN"; foreground: root.foreground; fontFamily: root.fontFamily }
+
+          ButtonGroup {
+            visible: root.view === "settings"
+            spacing: Style.space(6)
+            value: root.cfg.atLogin
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            focusable: false
+            options: [
+              { value: "play", label: "Start playing" },
+              { value: "wait", label: "Wait for me", tooltip: "Stay paused until you press play" },
+              { value: "resume", label: "Remember", tooltip: "Play if it was playing when you logged out" }
+            ]
+            onChanged: function(v) { if (root.svc) root.svc.update({ atLogin: v }) }
           }
 
           PanelSectionHeader { visible: root.view === "settings"; text: "WEATHER LOCATION"; foreground: root.foreground; fontFamily: root.fontFamily }
