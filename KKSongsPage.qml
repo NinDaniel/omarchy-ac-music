@@ -21,12 +21,11 @@ Column {
   readonly property real rightInset: Style.space(4)
 
   function matches(song) {
-    var q = query.trim().toLowerCase()
-    return q === "" || Model.kkTitle(song).toLowerCase().indexOf(q) >= 0
+    return Model.kkMatches(song, query)
   }
 
   function visibleSongs(prefix) {
-    return Data.kkSongs.filter(function(s) { return Model.kkGroup(s) === prefix && page.matches(s) })
+    return Data.kkSongs.filter(function(s) { return Model.kkGroup(s) === prefix && page.matches(s) }).sort(Model.byKKTitle)
   }
 
   function keys(songs, version) {

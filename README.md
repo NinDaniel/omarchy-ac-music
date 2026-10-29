@@ -264,7 +264,8 @@ How it works:
 
 - **Tick or untick** each version separately. If a song has both versions ticked, K.K. picks either one each time it comes up. A song with neither ticked is skipped.
 - **Group headings** have a tick-all box for each column. It shows a dash when only some of the group is ticked.
-- **Search:** type part of a name (for example `bossa`) to narrow the list. `Esc` clears the search, and a second `Esc` goes back.
+- **Names:** songs use their New Horizons names, sorted alphabetically within each group. A few had different names in older English versions, such as *K.K. Mariachi* (*Señor K.K.*).
+- **Search:** type part of a name (for example `bossa`) to narrow the list. Accents are optional (`etude` finds *K.K. Étude*), and older names work too. `Esc` clears the search, and a second `Esc` goes back.
 - **All live / All aircheck / None** tick or untick a whole column, or just the songs matching the search when there is one.
 - **Preview (▶):** each version has its own play button, so you can hear the difference before choosing. It plays straight away, over whatever was playing. Press ■ to stop. When it ends or stops, the scheduled music picks back up. Previews take a couple of seconds to start while the song streams in.
 - The summary line counts what's ticked, for example *95 live · 12 aircheck · 95 of 95 songs can play*.

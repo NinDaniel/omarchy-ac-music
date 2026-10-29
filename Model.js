@@ -538,10 +538,42 @@ function kkArtUrl(song) {
   return song ? BASE_URL + "/kk/art/" + encodeURIComponent(song) + ".png" : ""
 }
 
-// "NH - Drivin'" -> "Drivin'"
-function kkTitle(song) {
+// New Horizons' English names, where the server's file names differ.
+var KK_NAMES = {
+  "AC - Senor K.K.": "K.K. Mariachi",
+  "AC - K.K. Etude": "K.K. Étude",
+  "AC - Cafe K.K.": "Café K.K.",
+  "AC - K.K. D & B": "K.K. D&B",
+  "AC - Go K.K. Rider!": "Go K.K. Rider"
+}
+
+// The title in the server's file name: "NH - Drivin'" -> "Drivin'".
+function kkFileTitle(song) {
   var i = song.indexOf(" - ")
   return i >= 0 ? song.substring(i + 3) : song
+}
+
+// The title to show people.
+function kkTitle(song) {
+  return KK_NAMES[song] || kkFileTitle(song)
+}
+
+// Lowercase without accents, so "etude" finds "Étude".
+function searchKey(text) {
+  var t = String(text).toLowerCase()
+  if (typeof t.normalize === "function") t = t.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  return t
+}
+
+// Search matches the shown title or the file's title (an older name).
+function kkMatches(song, query) {
+  var q = searchKey(String(query).trim())
+  return q === "" || searchKey(kkTitle(song)).indexOf(q) >= 0 || searchKey(kkFileTitle(song)).indexOf(q) >= 0
+}
+
+function byKKTitle(a, b) {
+  var x = searchKey(kkTitle(a)), y = searchKey(kkTitle(b))
+  return x < y ? -1 : (x > y ? 1 : 0)
 }
 
 function versionName(version) {
