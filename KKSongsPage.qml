@@ -16,6 +16,8 @@ Column {
   readonly property var cfg: p.cfg
   readonly property var counts: Model.kkCounts(cfg, Data.kkSongs)
   readonly property real columnWidth: Style.space(46)
+  // Keeps the version columns clear of the panel's scroll bar.
+  readonly property real rightInset: Style.space(16)
 
   function matches(song) {
     var q = query.trim().toLowerCase()
@@ -113,7 +115,7 @@ Column {
 
     Text {
       id: liveHeading
-      x: parent.width - page.columnWidth * 2
+      x: parent.width - page.rightInset - page.columnWidth * 2
       width: page.columnWidth
       horizontalAlignment: Text.AlignHCenter
       text: "LIVE"
@@ -124,7 +126,7 @@ Column {
     }
 
     Text {
-      x: parent.width - page.columnWidth
+      x: parent.width - page.rightInset - page.columnWidth
       width: page.columnWidth
       horizontalAlignment: Text.AlignHCenter
       text: "AIRCHECK"
@@ -168,7 +170,7 @@ Column {
             required property string modelData
             required property int index
             readonly property int on: modelData === "live" ? group.liveOn : group.aircheckOn
-            x: parent.width - page.columnWidth * (2 - index)
+            x: parent.width - page.rightInset - page.columnWidth * (2 - index)
             width: page.columnWidth
             height: parent.height
 
@@ -198,7 +200,7 @@ Column {
             anchors.left: parent.left
             anchors.leftMargin: Style.space(10)
             anchors.right: parent.right
-            anchors.rightMargin: page.columnWidth * 2 + Style.space(4)
+            anchors.rightMargin: page.rightInset + page.columnWidth * 2 + Style.space(4)
             anchors.verticalCenter: parent.verticalCenter
             text: Model.kkTitle(songRow.modelData)
             color: page.p.svc && page.p.svc.previewSong === songRow.modelData ? page.p.accent
@@ -217,7 +219,7 @@ Column {
               readonly property bool on: Model.kkOn(page.cfg, modelData, songRow.modelData)
               readonly property bool previewing: !!page.p.svc && page.p.svc.previewSong === songRow.modelData
                 && page.p.svc.previewVersion === modelData
-              x: songRow.width - page.columnWidth * (2 - index)
+              x: songRow.width - page.rightInset - page.columnWidth * (2 - index)
               width: page.columnWidth
               height: songRow.height
 
