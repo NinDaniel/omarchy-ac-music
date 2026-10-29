@@ -4,16 +4,18 @@ import qs.Ui
 import "Model.js" as Model
 import "Data.js" as Data
 
-// Every K.K. song, grouped by the game it first appeared in, with search,
-// per-group tick-all, and a preview button on each song.
+// Every K.K. song, grouped by the game it's credited to. Each song has a live
+// and an aircheck box (with a preview for each), and each group has tick-all
+// boxes for both columns. Search narrows the list.
 Column {
   id: page
 
   property var p
   property string query: ""
 
-  readonly property var skip: p.cfg.kk.skip
-  readonly property int tickedCount: Data.kkSongs.filter(function(s) { return skip.indexOf(s) < 0 }).length
+  readonly property var cfg: p.cfg
+  readonly property var counts: Model.kkCounts(cfg, Data.kkSongs)
+  readonly property real columnWidth: Style.space(46)
 
   function matches(song) {
     var q = query.trim().toLowerCase()
@@ -24,6 +26,14 @@ Column {
     return Data.kkSongs.filter(function(s) { return Model.kkGroup(s) === prefix && page.matches(s) })
   }
 
+  function keys(songs, version) {
+    return songs.map(function(s) { return Model.kkKey(version, s) })
+  }
+
+  function onCount(songs, version) {
+    return songs.filter(function(s) { return Model.kkOn(page.cfg, version, s) }).length
+  }
+
   width: parent ? parent.width : 0
   spacing: Style.space(10)
 
@@ -31,62 +41,98 @@ Column {
 
   Text {
     width: parent.width
-    text: "Untick songs you don't want K.K. to play. The play button previews a song now, and your music picks back up when it ends."
+    text: "Tick the live (L) and aircheck (A) versions K.K. may play. When a song has both ticked, he picks either. "
+      + "The play buttons preview a version now, and your music picks back up when it ends."
     color: page.p.dim
     wrapMode: Text.WordWrap
     font.family: page.p.fontFamily
     font.pixelSize: Style.font.bodySmall
   }
 
-  Row {
+  TextField {
     width: parent.width
+    placeholderText: "Search songs"
+    foreground: page.p.foreground
+    font.family: page.p.fontFamily
+    onTextChanged: page.query = text
+    Keys.onEscapePressed: function(event) {
+      if (text !== "") text = ""
+      else page.p.back()
+      event.accepted = true
+    }
+  }
+
+  Row {
     spacing: Style.space(6)
 
-    TextField {
-      id: search
-      width: parent.width - allButton.width - noneButton.width - parent.spacing * 2
-      placeholderText: "Search songs"
-      foreground: page.p.foreground
-      font.family: page.p.fontFamily
-      onTextChanged: page.query = text
-      Keys.onEscapePressed: function(event) {
-        if (text !== "") text = ""
-        else page.p.back()
-        event.accepted = true
-      }
-    }
-
     Button {
-      id: allButton
-      anchors.verticalCenter: parent.verticalCenter
       bordered: true
-      text: "All"
-      tooltipText: page.query ? "Tick every song matching the search" : "Tick every song"
+      text: "All live"
+      tooltipText: page.query ? "Tick the live version of every matching song" : "Tick the live version of every song"
       foreground: page.p.foreground
       fontFamily: page.p.fontFamily
-      onClicked: page.p.svc.setKKSongs(Data.kkSongs.filter(page.matches), true)
+      onClicked: page.p.svc.setKKSongs(page.keys(Data.kkSongs.filter(page.matches), "live"), true)
     }
 
     Button {
-      id: noneButton
-      anchors.verticalCenter: parent.verticalCenter
+      bordered: true
+      text: "All aircheck"
+      tooltipText: page.query ? "Tick the aircheck version of every matching song" : "Tick the aircheck version of every song"
+      foreground: page.p.foreground
+      fontFamily: page.p.fontFamily
+      onClicked: page.p.svc.setKKSongs(page.keys(Data.kkSongs.filter(page.matches), "aircheck"), true)
+    }
+
+    Button {
       bordered: true
       text: "None"
-      tooltipText: page.query ? "Untick every song matching the search" : "Untick every song"
+      tooltipText: page.query ? "Untick both versions of every matching song" : "Untick everything"
       foreground: page.p.foreground
       fontFamily: page.p.fontFamily
-      onClicked: page.p.svc.setKKSongs(Data.kkSongs.filter(page.matches), false)
+      onClicked: {
+        var songs = Data.kkSongs.filter(page.matches)
+        page.p.svc.setKKSongs(page.keys(songs, "live").concat(page.keys(songs, "aircheck")), false)
+      }
     }
   }
 
   Text {
     width: parent.width
-    text: page.tickedCount === 0
+    text: page.counts.any === 0
       ? "Nothing ticked, so K.K. plays from every song."
-      : page.tickedCount + " of " + Data.kkSongs.length + " songs ticked"
-    color: page.tickedCount === 0 ? page.p.accent : page.p.dim
+      : page.counts.live + " live · " + page.counts.aircheck + " aircheck · " + page.counts.any + " of " + page.counts.total + " songs can play"
+    color: page.counts.any === 0 ? page.p.accent : page.p.dim
     font.family: page.p.fontFamily
     font.pixelSize: Style.font.bodySmall
+  }
+
+  // Column headings, lined up with the boxes below.
+  Item {
+    width: parent.width
+    height: liveHeading.implicitHeight
+
+    Text {
+      id: liveHeading
+      x: parent.width - page.columnWidth * 2
+      width: page.columnWidth
+      horizontalAlignment: Text.AlignHCenter
+      text: "LIVE"
+      color: page.p.dim
+      font.family: page.p.fontFamily
+      font.pixelSize: Style.font.caption
+      font.bold: true
+    }
+
+    Text {
+      x: parent.width - page.columnWidth
+      width: page.columnWidth
+      horizontalAlignment: Text.AlignHCenter
+      text: "AIRCHECK"
+      color: page.p.dim
+      font.family: page.p.fontFamily
+      font.pixelSize: Style.font.caption
+      font.bold: true
+    }
   }
 
   Repeater {
@@ -95,27 +141,47 @@ Column {
       id: group
       required property var modelData
       readonly property var songs: page.visibleSongs(modelData.prefix)
-      readonly property int ticked: songs.filter(function(s) { return page.skip.indexOf(s) < 0 }).length
+      readonly property int liveOn: page.onCount(songs, "live")
+      readonly property int aircheckOn: page.onCount(songs, "aircheck")
 
       visible: songs.length > 0
       width: page.width
       spacing: Style.space(1)
 
-      Row {
-        spacing: Style.space(6)
-        TickBox {
-          p: page.p
-          checked: group.ticked === group.songs.length
-          partial: group.ticked > 0
-          onToggled: page.p.svc.setKKSongs(group.songs, group.ticked !== group.songs.length)
-        }
+      Item {
+        width: parent.width
+        height: Style.space(22)
+
         Text {
+          anchors.left: parent.left
           anchors.verticalCenter: parent.verticalCenter
-          text: group.modelData.name.toUpperCase() + "  " + group.ticked + "/" + group.songs.length
+          text: group.modelData.name.toUpperCase() + "  " + group.songs.length
           color: page.p.foreground
           font.family: page.p.fontFamily
           font.pixelSize: Style.font.caption
           font.bold: true
+        }
+
+        Repeater {
+          model: Model.KK_VERSIONS
+          delegate: Item {
+            required property string modelData
+            required property int index
+            readonly property int on: modelData === "live" ? group.liveOn : group.aircheckOn
+            x: parent.width - page.columnWidth * (2 - index)
+            width: page.columnWidth
+            height: parent.height
+
+            TickBox {
+              anchors.left: parent.left
+              anchors.leftMargin: Style.space(4)
+              anchors.verticalCenter: parent.verticalCenter
+              p: page.p
+              checked: parent.on === group.songs.length
+              partial: parent.on > 0
+              onToggled: page.p.svc.setKKSongs(page.keys(group.songs, parent.modelData), parent.on !== group.songs.length)
+            }
+          }
         }
       }
 
@@ -124,51 +190,60 @@ Column {
         delegate: Item {
           id: songRow
           required property string modelData
-          readonly property bool ticked: page.skip.indexOf(modelData) < 0
-          readonly property bool previewing: !!page.p.svc && page.p.svc.previewSong === modelData
+          readonly property bool anyOn: Model.kkVersionsFor(page.cfg, modelData).length > 0
           width: group.width
           height: Style.space(22)
 
-          TickBox {
-            id: songBox
-            anchors.left: parent.left
-            anchors.leftMargin: Style.space(14)
-            anchors.verticalCenter: parent.verticalCenter
-            p: page.p
-            checked: songRow.ticked
-            onToggled: page.p.svc.setKKSongs([songRow.modelData], !songRow.ticked)
-          }
-
           Text {
-            anchors.left: songBox.right
-            anchors.leftMargin: Style.space(6)
-            anchors.right: previewButton.left
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(10)
+            anchors.right: parent.right
+            anchors.rightMargin: page.columnWidth * 2 + Style.space(4)
             anchors.verticalCenter: parent.verticalCenter
             text: Model.kkTitle(songRow.modelData)
-            color: songRow.previewing ? page.p.accent : (songRow.ticked ? page.p.foreground : page.p.dim)
+            color: page.p.svc && page.p.svc.previewSong === songRow.modelData ? page.p.accent
+              : (songRow.anyOn ? page.p.foreground : page.p.dim)
             elide: Text.ElideRight
             font.family: page.p.fontFamily
             font.pixelSize: Style.font.body
-
-            MouseArea {
-              anchors.fill: parent
-              cursorShape: Qt.PointingHandCursor
-              onClicked: page.p.svc.setKKSongs([songRow.modelData], !songRow.ticked)
-            }
           }
 
-          PanelActionButton {
-            id: previewButton
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            size: Style.space(20)
-            fontSize: Style.font.body
-            iconText: songRow.previewing ? page.p.iconStop : page.p.iconPlay
-            tooltipText: songRow.previewing ? "Stop preview" : "Preview"
-            foreground: songRow.previewing ? page.p.accent : page.p.dim
-            hoverColor: page.p.foreground
-            fontFamily: page.p.fontFamily
-            onClicked: page.p.svc.playPreview(songRow.modelData)
+          Repeater {
+            model: Model.KK_VERSIONS
+            delegate: Item {
+              id: versionCell
+              required property string modelData
+              required property int index
+              readonly property bool on: Model.kkOn(page.cfg, modelData, songRow.modelData)
+              readonly property bool previewing: !!page.p.svc && page.p.svc.previewSong === songRow.modelData
+                && page.p.svc.previewVersion === modelData
+              x: songRow.width - page.columnWidth * (2 - index)
+              width: page.columnWidth
+              height: songRow.height
+
+              TickBox {
+                id: versionBox
+                anchors.left: parent.left
+                anchors.leftMargin: Style.space(4)
+                anchors.verticalCenter: parent.verticalCenter
+                p: page.p
+                checked: versionCell.on
+                onToggled: page.p.svc.setKKSongs([Model.kkKey(versionCell.modelData, songRow.modelData)], !versionCell.on)
+              }
+
+              PanelActionButton {
+                anchors.left: versionBox.right
+                anchors.verticalCenter: parent.verticalCenter
+                size: Style.space(20)
+                fontSize: Style.font.bodySmall
+                iconText: versionCell.previewing ? page.p.iconStop : page.p.iconPlay
+                tooltipText: (versionCell.previewing ? "Stop " : "Preview ") + Model.versionName(versionCell.modelData).toLowerCase()
+                foreground: versionCell.previewing ? page.p.accent : page.p.dim
+                hoverColor: page.p.foreground
+                fontFamily: page.p.fontFamily
+                onClicked: page.p.svc.playPreview(songRow.modelData, versionCell.modelData)
+              }
+            }
           }
         }
       }

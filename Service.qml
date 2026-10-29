@@ -51,14 +51,24 @@ Item {
   readonly property bool heldQuiet: otherMediaHold && config.otherMedia === "lower"
   // Actually making sound: the user wants music and nothing is holding it.
   readonly property bool audible: playing && !heldPaused
-  readonly property bool kkActive: Model.isKKTime(config, now)
+  // K.K. by schedule (always or a concert), or picked from the hourly grid.
+  readonly property bool kkScheduled: Model.isKKTime(config, now)
+  readonly property bool kkActive: kkScheduled || game === Model.KK_ID
+  // Hour that opens with one K.K. song before its own music (between-hours).
+  property int betweenHour: -1
+  readonly property bool betweenActive: betweenHour === hour && !kkActive
   readonly property string game: Model.pickGame(config, day, hour, salt, slot, weather)
   readonly property string trackWeather: Model.trackWeather(game, weather)
   // Changing this string is what triggers a track change. Waiting for the
   // first weather answer (briefly) avoids playing sunny music for a second
   // and then swapping to rain.
   readonly property bool ready: configLoaded && loginApplied && (!autoWeather || liveWeather !== "" || weatherGrace.expired)
-  readonly property string trackKey: !ready ? "" : (kkActive ? "kk|" + config.kk.version : game + "|" + trackWeather + "|" + hour)
+  readonly property string trackKey: {
+    if (!ready) return ""
+    if (betweenActive) return "between|" + hour
+    if (kkActive) return "kk"
+    return game + "|" + trackWeather + "|" + hour
+  }
 
   // ---- Now playing (for the UI) ----
   property string kkSong: ""
@@ -67,13 +77,16 @@ Item {
   property string lastError: ""
   // K.K. song being previewed from Settings (plays over whatever was on).
   property string previewSong: ""
+  property string previewVersion: ""
   property string version: ""
   // View the next panel opening should land on ("settings" from the CLI).
   property string requestedView: ""
-  readonly property string title: previewSong ? "K.K. Slider preview" : (kkActive ? "K.K. Slider" : Model.gameName(game))
+  readonly property string title: previewSong ? "K.K. Slider preview" : (kkActive || betweenActive ? "K.K. Slider" : Model.gameName(game))
   readonly property string subtitle: {
-    if (previewSong) return Model.kkTitle(previewSong) + " · " + (kkVersionPlaying === "aircheck" ? "Aircheck" : "Live")
-    if (kkActive) return kkSong ? Model.kkTitle(kkSong) + " · " + (kkVersionPlaying === "aircheck" ? "Aircheck" : "Live") : "K.K. Slider"
+    if (previewSong) return Model.kkTitle(previewSong) + " · " + Model.versionName(previewVersion)
+    var song = kkSong ? Model.kkTitle(kkSong) + " · " + Model.versionName(kkVersionPlaying) : ""
+    if (betweenActive) return (song || "K.K. Slider") + " · then " + Model.hourLabel(hour)
+    if (kkActive) return song || "K.K. Slider"
     return Model.hourLabel(hour) + " · " + Model.weatherName(weather)
   }
 
@@ -124,23 +137,47 @@ Item {
     update({ hours: hours })
   }
 
+  // Copy what's in effect for one weather (GameCube on Rain follows Sunny)
+  // to all three grids.
   function copyGridToAll(weatherId) {
-    var hours = Model.clone(config.hours)
-    Model.WEATHERS.forEach(function(w) { hours[w] = Model.clone(hours[weatherId]) })
+    var source = {}
+    for (var h = 0; h < 24; h++)
+      source[String(h)] = Model.GRID_IDS.filter(function(id) { return Model.ticked(config, weatherId, h, id) })
+    var hours = {}
+    Model.WEATHERS.forEach(function(w) { hours[w] = Model.clone(source) })
     update({ hours: hours })
   }
 
-  // Tick (on) or untick K.K. songs; unticked songs are stored in kk.skip.
-  function setKKSongs(songs, on) {
-    var skip = config.kk.skip.filter(function(s) { return songs.indexOf(s) < 0 })
-    if (!on) skip = skip.concat(songs)
-    setKK({ skip: skip })
+  // Tick (on) or untick K.K. song versions, given as "version/song" keys.
+  function setKKSongs(keys, on) {
+    var off = config.kk.off.filter(function(k) { return keys.indexOf(k) < 0 })
+    if (!on) off = off.concat(keys)
+    setKK({ off: off })
   }
 
-  // Random: roll a different game for this hour. K.K.: skip to the next song.
+  function setConcerts(patch) {
+    var concerts = Model.clone(config.kk.concerts)
+    for (var key in patch) concerts[key] = patch[key]
+    setKK({ concerts: concerts })
+  }
+
+  function setBetween(patch) {
+    var between = Model.clone(config.kk.between)
+    for (var key in patch) between[key] = patch[key]
+    setKK({ between: between })
+  }
+
+  // Between-hours song: skip it. Random: roll a different game for this
+  // hour. K.K.: skip to the next song.
   function next() {
-    if (kkActive) playNextKK()
+    if (betweenActive) endBetween()
+    else if (kkActive) playNextKK()
     else if (config.game === "random") salt++
+  }
+
+  function endBetween() {
+    loadedKey = ""
+    betweenHour = -1
   }
 
   FileView {
@@ -268,7 +305,11 @@ Item {
     onTriggered: {
       var d = new Date()
       if (d.getHours() !== root.now.getHours() || d.getDate() !== root.now.getDate()) {
+        var hourChanged = d.getHours() !== root.now.getHours()
         root.salt = 0
+        // Only a real hour change while music is playing opens with K.K.
+        if (hourChanged && root.audible && root.ready && Model.wantsBetween(root.config, d.getHours()))
+          root.betweenHour = d.getHours()
         root.now = d
       }
       root.syncSlot(d)
@@ -350,6 +391,11 @@ Item {
     previewSong = ""
     lastError = ""
     loadedKey = trackKey
+    if (betweenActive) {
+      startKK(Model.pickKK(config, Data.kkSongs, recentKK))
+      notifyTrack("K.K. Slider", Model.kkTitle(kkSong) + ", then " + Model.hourLabel(hour))
+      return
+    }
     if (kkActive) {
       playNextKK()
       return
@@ -364,22 +410,21 @@ Item {
     notifyTrack(Model.gameName(game), Model.hourLabel(hour) + " · " + Model.weatherName(trackWeather))
   }
 
-  function kkVersionFor() {
-    return config.kk.version === "both" ? (Math.random() < 0.5 ? "live" : "aircheck") : config.kk.version
+  // Load one K.K. song ({ song, version }); it plays once, no looping.
+  function startKK(choice) {
+    previewSong = ""
+    recentKK = recentKK.concat([choice.song]).slice(-20)
+    kkSong = choice.song
+    kkVersionPlaying = choice.version
+    lastError = ""
+    send(["loadfile", Model.kkUrl(choice.version, choice.song), "replace", -1, "loop-file=no,ab-loop-a=no,ab-loop-b=no"])
+    send(["set_property", "pause", !audible])
+    restoreVolume()
   }
 
   function playNextKK() {
-    var song = Model.pickKKSong(Model.kkAllowed(config, Data.kkSongs), recentKK)
-    var version = kkVersionFor()
-    previewSong = ""
-    recentKK = recentKK.concat([song]).slice(-20)
-    kkSong = song
-    kkVersionPlaying = version
-    lastError = ""
-    send(["loadfile", Model.kkUrl(version, song), "replace", -1, "loop-file=no,ab-loop-a=no,ab-loop-b=no"])
-    send(["set_property", "pause", !audible])
-    restoreVolume()
-    notifyTrack("K.K. Slider", Model.kkTitle(song))
+    startKK(Model.pickKK(config, Data.kkSongs, recentKK))
+    notifyTrack("K.K. Slider", Model.kkTitle(kkSong))
   }
 
   function restoreVolume() {
@@ -395,16 +440,15 @@ Item {
 
   // Play one K.K. song right now, from the song picker. When it ends (or is
   // stopped) the scheduled music picks back up.
-  function playPreview(song) {
-    if (previewSong === song) {
+  function playPreview(song, version) {
+    if (previewSong === song && previewVersion === version) {
       stopPreview()
       return
     }
     ensureMpv()
     fadeOut.stop()
-    var version = kkVersionFor()
     previewSong = song
-    kkVersionPlaying = version
+    previewVersion = version
     loadedKey = "preview"
     send(["loadfile", Model.kkUrl(version, song), "replace", -1, "loop-file=no,ab-loop-a=no,ab-loop-b=no"])
     send(["set_property", "pause", false])
@@ -425,6 +469,8 @@ Item {
     if (msg.event !== "end-file") return
     if (msg.reason === "eof" && loadedKey === "preview") {
       stopPreview()
+    } else if (msg.reason === "eof" && loadedKey.indexOf("between|") === 0) {
+      endBetween()
     } else if (msg.reason === "eof" && kkActive && loadedKey === trackKey) {
       playNextKK()
     } else if (msg.reason === "error" && loadedKey === "preview") {

@@ -5,8 +5,8 @@ Animal Crossing's hourly music in your [Omarchy](https://omarchy.org) bar.
 A small leaf sits in your bar. Every hour, on the hour, the music changes to
 that hour's theme, just like in the games. It can follow your real weather
 with the rain and snow versions, mix the four games together, step aside
-when you play something else, and hand the stage to K.K. Slider on Saturday
-nights.
+when you play something else, and bring in K.K. Slider: for concerts on your
+own schedule, as part of the hourly mix, or for one song as each hour begins.
 
 Nothing is stored on your machine. Tracks stream on demand.
 
@@ -40,7 +40,11 @@ Nothing is stored on your machine. Tracks stream on demand.
 - **Real weather:** on *Auto*, you hear the rain and snow versions when it's raining or snowing where you are. You can also lock it to Sunny, Rain, or Snow.
 - **Per-hour, per-weather picks:** grids decide which games Random may choose each hour, with a separate grid for sunny, rainy, and snowy weather. Love New Leaf's rainy 11 AM but not its sunny one? Untick just that box.
 - **Three ways to mix:** a new game every hour, one game all day, or switch every few minutes (10, 15, 30, or any interval you like).
-- **K.K. Slider:** Saturday night concerts from 8 PM to midnight, or K.K. all the time. Pick live versions, aircheck versions, or both, and choose exactly which of the 92 songs he plays, with search and a preview button.
+- **K.K. Slider, your way:**
+  - **Concerts** on the days and hours you choose (Saturday 8 PM to midnight out of the box), or K.K. all the time.
+  - **In the hourly mix:** tick K.K. in the grids and Random can pick him for an hour, like a fifth game.
+  - **Between hours:** one K.K. song as the hour changes, before that hour's music starts.
+  - **Every song, both versions:** tick the live and aircheck version of each of the 92 songs separately, with search and previews.
 - **Seamless loops:** each song loops at the game's own loop point instead of restarting its intro.
 - **Steps aside for other media:** when YouTube Music, Spotify, a video, or any other player starts, the music pauses or turns down. It comes back by itself when that stops.
 - **Your choice at login:** start playing, wait for you to press play, or pick up where you left off.
@@ -70,7 +74,7 @@ omarchy bar move danr.ac-music --section left    # left | center | right
 | Hover        | Shows what's playing (and whether it's paused or on hold)     |
 | Left click   | Opens the panel                                               |
 | Right click  | Play / pause                                                  |
-| Middle click | Shuffle to another game (Random) or skip to the next K.K. song |
+| Middle click | Shuffle to another game (Random), skip to the next K.K. song, or skip a between-hours song |
 | Scroll       | Volume up / down in 5% steps                                  |
 
 The leaf is dimmed while the music is paused, on hold, or turned down.
@@ -90,7 +94,7 @@ From top to bottom:
 - **Game:** **GC** (Animal Crossing on GameCube), **WW** (Wild World / City Folk), **NL** (New Leaf), **NH** (New Horizons), or **Random**. Hover a button for the full name. Picking a specific game always plays that game; the per-hour grid only applies to Random.
 - **Weather:** **Auto** follows the real weather. **Sunny**, **Rain**, and **Snow** lock it. On Auto, the line underneath shows the current conditions and where they're from.
 - **On hold:** when another player is playing, a line explains that the music is paused (or quieter) and will come back on its own.
-- **Shuffle game / Next song:** shows when it's useful. On Random it rolls a different game for now; during K.K. it skips to another song.
+- **Shuffle game / Next song / Skip to the hour:** shows when it's useful. On Random it rolls a different game for now. During K.K. it skips to another song. During a between-hours song it skips straight to the hour's music.
 - **Settings:** opens the settings menu (see below).
 
 **Keyboard**, while the panel is open:
@@ -98,7 +102,7 @@ From top to bottom:
 | Key         | Action                                      |
 |-------------|---------------------------------------------|
 | `p`, Space, or Enter | Play / pause                    |
-| `n`         | Shuffle game / next K.K. song               |
+| `n`         | Same as the Shuffle / Next / Skip button    |
 | `s`         | Switch between the panel and Settings       |
 | `Esc`       | Go back one page, or close the panel        |
 | `Tab`       | Move to the neighbouring bar panel          |
@@ -126,21 +130,33 @@ of it, and the page reminds you of that.
 
 Three grids, one each for **Sunny**, **Rain**, and **Snow**, picked with the
 tabs at the top. The page opens on the tab for the current weather. Each grid
-is 24 hours by 4 games, and Random only picks from the games ticked for the
-current hour **in the current weather's grid**.
+is 24 hours by five columns: the four games (`GC`, `WW`, `NL`, `NH`) and
+**`KK`** for K.K. Slider. Random only picks from what's ticked for the current
+hour **in the current weather's grid**.
 
-- Click a box to tick or untick one game for one hour.
-- Click an **hour** (like `11 AM`) to tick or untick all four games for that hour.
-- Click a **game heading** (like `NL`) to tick or untick that game for all twelve hours in that half of the grid (AM or PM).
+- Click a box to tick or untick one column for one hour.
+- Click an **hour** (like `11 AM`) to tick or untick its whole row.
+- Click a **column heading** (like `NL`) to tick or untick that column for all twelve hours in that half of the grid (AM or PM).
 - The current hour is highlighted.
-- An hour with **nothing** ticked behaves as if everything is ticked, so it never goes silent.
+- An hour with **nothing** ticked behaves as if the four games are ticked, so it never goes silent.
 - **Copy this grid to the other weathers** makes the grid you're looking at the grid for all three weathers. It's handy when you want one change everywhere.
 
 So if you love New Leaf's rainy 11 AM but not its sunny one: open the **Sunny**
 tab and untick `NL` at `11 AM`, and leave the **Rain** tab alone.
 
-The original GameCube game has no rain music. On the **Rain** tab, its `GC`
-column decides whether its *sunny* track can play on rainy days.
+**The `KK` column** starts unticked everywhere. Tick it for an hour and Random
+can pick K.K. Slider for that hour, just like a game: he plays songs back to
+back (from your [chosen songs](#choose-songs)) until the hour or the pick
+changes. Because each weather has its own grid, "K.K. on rainy afternoons" is
+just a few ticks on the Rain tab. It works with every Random mode: **Once a day**
+can land on a K.K. day, and **Every few minutes** treats him as one of the
+hour's slots, for example New Leaf, then fifteen minutes of K.K., then Wild World.
+
+**GameCube on the Rain tab.** The original GameCube game has no rain music, so
+on rainy days it plays its sunny theme. Its `GC` column on the Rain tab is
+greyed out and simply shows your **Sunny** ticks, which is what decides it.
+Untick GameCube's sunny 11 AM and it won't play at 11 AM on rainy days either.
+(GameCube does have snow music, so its Snow column works normally.)
 
 If you're upgrading from an earlier version, your old single grid becomes the
 starting grid for all three weathers, so nothing changes until you edit one.
@@ -170,32 +186,72 @@ Details worth knowing:
   <img src="docs/kk-songs.png" width="48%" alt="Choosing K.K. songs">
 </p>
 
-| Setting                     | What it does |
-|-----------------------------|--------------|
-| **Saturday night concerts** | K.K. takes over every Saturday from 8 PM until midnight (your local time), like in the games. On by default. |
-| **K.K. all the time**       | Plays K.K. songs instead of the hourly music, any day and any time. |
-| **Live / Aircheck / Both**  | *Live* is K.K. with his guitar; *Aircheck* is the full-band radio version; *Both* picks either at random for each song. |
-| **Choose songs**            | Opens the song list (below). Its summary shows how many songs are ticked. |
+K.K. can show up in four ways. If more than one applies at once, he's simply
+on; nothing doubles up.
 
-During K.K., songs play through once and the next starts automatically. They're
-drawn from the songs you've ticked and won't repeat until 20 others have played,
-or until every ticked song has had a turn if you've ticked fewer than that. The
-Game and Weather choices are ignored until K.K. is over.
+#### Concerts
+
+K.K. takes over on a schedule, like his Saturday night shows in the games.
+
+- **Concerts** switches the schedule on or off. Its description spells out the current schedule, for example *Fri, Sat, 9 PM to 1 AM (next day)*.
+- **Days:** tap `Su` through `Sa` to choose which days have a concert.
+- **From / to:** the start and end hour. An end at or before the start runs **past midnight** into the next morning, and the end dropdown labels those hours *(next day)*. So a Friday concert from 9 PM to 1 AM keeps going until 1 AM on Saturday.
+- Out of the box it's **Saturdays, 8 PM to midnight**, like in the games. If you're upgrading, your old "Saturday night concerts" switch carries over.
+
+**K.K. all the time** plays K.K. instead of the hourly music around the clock.
+
+#### In the hourly mix
+
+Tick the `KK` column in the [hourly grids](#which-games-can-play) and Random can
+pick K.K. for that hour. The page tells you how many hours he's ticked in and
+has a button that jumps to the grids.
+
+#### Between hours
+
+K.K. plays **one song as the hour changes**, then that hour's music starts.
+Choose how often from the dropdown:
+
+| Option            | When |
+|-------------------|------|
+| **Off**           | Never (default). |
+| **Every hour**    | At every hour change. |
+| **Every 2 hours** | At even hours: 12 AM, 2 AM, 4 AM, and so on. |
+| **Every 3 hours** | At 12 AM, 3 AM, 6 AM, 9 AM, 12 PM, and so on. |
+| **Hours I pick**  | Only at the hours you tick in the row of 24 boxes that appears (`12a`, `1a`, … `11p`). |
+
+Good to know:
+
+- His songs run 2 to 4 minutes, so the new hour's theme starts that much later.
+- It only happens on a real hour change while music is playing. It's skipped if the music is paused or on hold, or if K.K. is already playing (a concert or a K.K. hour).
+- While it plays, the panel reads something like *K.K. Casbah · Live · then 12 PM*, and **Skip to the hour** (or a middle click on the leaf) jumps straight to the hour's music.
 
 #### Choose songs
 
-All 92 songs, grouped by the game they're credited to: **Animal Crossing** (52),
-**City Folk** (20), **New Leaf** (16), and **New Horizons** (4).
+Opens the full list of 92 songs, grouped by the game they're credited to:
+**Animal Crossing** (52), **City Folk** (20), **New Leaf** (16), and **New
+Horizons** (4). Every song comes in two versions, and each has its own box:
 
-- **Tick or untick** a song with its box, or click its name.
-- **Group heading:** the box next to a group's name ticks or unticks the whole group. It shows a dash when only some of the group is ticked, along with a count like `48/52`.
+- **Live (L)** is K.K. with his guitar, as at his shows.
+- **Aircheck (A)** is the full-band radio version.
+
+How it works:
+
+- **Tick or untick** each version separately. If a song has both versions ticked, K.K. picks either one each time it comes up. A song with neither ticked is skipped.
+- **Group headings** have a tick-all box for each column. It shows a dash when only some of the group is ticked.
 - **Search:** type part of a name (for example `bossa`) to narrow the list. `Esc` clears the search, and a second `Esc` goes back.
-- **All / None:** tick or untick every song, or every song matching the search when there is one.
-- **Preview (▶):** plays that song right away, over whatever was playing. Press ■ (or the same song's button) to stop. When the preview ends or stops, the scheduled music picks back up. Previews take a couple of seconds to start, while the song streams in.
-- If nothing is ticked, K.K. plays from every song rather than going silent.
+- **All live / All aircheck / None** tick or untick a whole column, or just the songs matching the search when there is one.
+- **Preview (▶):** each version has its own play button, so you can hear the difference before choosing. It plays straight away, over whatever was playing. Press ■ to stop. When it ends or stops, the scheduled music picks back up. Previews take a couple of seconds to start while the song streams in.
+- The summary line counts what's ticked, for example *92 live · 12 aircheck · 92 of 92 songs can play*.
+- If nothing is ticked at all, K.K. plays from every song rather than going silent.
 
-Songs you untick are stored as a skip list, so any songs added in future
-versions start out ticked.
+Out of the box every song's **live** version is ticked and its aircheck isn't,
+matching the old default. If you're upgrading, your old Live / Aircheck / Both
+choice and any songs you'd unticked carry over.
+
+Wherever K.K. plays, songs play through once and the next starts automatically.
+They're drawn from your ticked songs and won't repeat until 20 others have
+played, or until every ticked song has had a turn if you've ticked fewer than
+that.
 
 ### Playback
 
@@ -264,7 +320,7 @@ ln -s ~/.config/omarchy/plugins/danr.ac-music/bin/ac-music ~/.local/bin/ac-music
 | `ac-music toggle`          | Play / pause |
 | `ac-music play`            | Play |
 | `ac-music pause`           | Pause |
-| `ac-music next`            | Shuffle game (Random) or next K.K. song |
+| `ac-music next`            | Shuffle game (Random), next K.K. song, or skip a between-hours song |
 | `ac-music status`          | Print what's playing, e.g. `Playing: New Leaf - 11 AM · Raining` |
 | `ac-music game <game>`     | `animal-crossing`, `wild-world`, `new-leaf`, `new-horizons`, or `random` |
 | `ac-music weather <mode>`  | `auto`, `sunny`, `rain`, or `snow` |
@@ -298,11 +354,15 @@ Anything missing or invalid falls back to its default.
 | `weather`        | `auto`, `sunny`, `raining`, `snowing` | `auto` |
 | `randomMode`     | `hourly`, `daily`, `interval` | `hourly` |
 | `shuffleMinutes` | `1` to `60` (used by `interval`) | `15` |
-| `hours`          | `sunny`, `raining`, `snowing`, each with `"0"` to `"23"` mapped to a list of allowed games | every game, every hour, every weather |
-| `kk.saturday`    | `true` / `false` | `true` |
-| `kk.always`      | `true` / `false` | `false` |
-| `kk.version`     | `live`, `aircheck`, `both` | `live` |
-| `kk.skip`        | list of K.K. song names to leave out, like `"AC - K.K. Aria"` | `[]` |
+| `hours`          | `sunny`, `raining`, `snowing`, each with `"0"` to `"23"` mapped to a list of allowed games (and `"kk"`) | the four games, every hour, every weather |
+| `kk.concerts.enabled` | `true` / `false` | `true` |
+| `kk.concerts.days`    | list of days, `0` (Sunday) to `6` (Saturday) | `[6]` |
+| `kk.concerts.start`   | `0` to `23` (hour) | `20` |
+| `kk.concerts.end`     | `1` to `24` (hour; `24` is midnight; at or before `start` means the next day) | `24` |
+| `kk.always`           | `true` / `false` | `false` |
+| `kk.between.mode`     | `off`, `every`, `2`, `3`, `hours` | `off` |
+| `kk.between.hours`    | list of hours `0` to `23` (used by `hours`) | `[]` |
+| `kk.off`              | list of unticked versions as `"version/song"`, like `"aircheck/AC - K.K. Aria"` | every aircheck |
 | `fade`           | `true` / `false` | `true` |
 | `notify`         | `true` / `false` | `false` |
 | `otherMedia`     | `pause`, `lower`, `ignore` | `pause` |
@@ -318,7 +378,8 @@ For example, to keep New Leaf out of sunny 11 AMs but keep it on rainy ones
 }
 ```
 
-Song names for `kk.skip` are listed in `Data.js`.
+Song names for `kk.off` are listed in `Data.js`. Older configs (with
+`kk.saturday`, `kk.version`, and `kk.skip`) are converted automatically.
 
 ## Updating and uninstalling
 
@@ -363,7 +424,8 @@ The plugin talks to three services:
 
 - **acmusicext.com:** the music itself. One song (usually 3 to 7 MB) per track
   change: once an hour normally, at every switch in *Every few minutes* mode,
-  and once per song during K.K. Loops replay from memory and don't download again.
+  once per song whenever K.K. plays (concerts, K.K. hours, between-hours songs),
+  and once per preview. Loops replay from memory and don't download again.
 - **api.open-meteo.com:** current weather for your coordinates, every 20 minutes,
   only while Weather is on *Auto*.
 - **wttr.in:** only when Omarchy's weather widget has no location set, to work

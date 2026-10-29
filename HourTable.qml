@@ -3,9 +3,10 @@ import qs.Commons
 import qs.Ui
 import "Model.js" as Model
 
-// Twelve hours x four games of checkboxes for one weather's grid. Clicking an
-// hour flips its row; clicking a game heading flips its column (these twelve
-// hours only).
+// Twelve hours of checkboxes for one weather's grid: the four games plus K.K.
+// Clicking an hour flips its row; clicking a heading flips that column (these
+// twelve hours only). On the Rain tab the GameCube column is read-only: that
+// game has no rain music, so it follows the Sunny grid.
 Column {
   id: table
 
@@ -13,28 +14,41 @@ Column {
   property string weatherId: "sunny"
   property int firstHour: 0
 
-  readonly property var grid: p.cfg.hours[weatherId]
   readonly property var hourList: {
     var list = []
     for (var h = firstHour; h < firstHour + 12; h++) list.push(h)
     return list
   }
-  readonly property real labelWidth: Style.space(48)
-  readonly property real cellWidth: (width - labelWidth) / Model.GAMES.length
+  readonly property real labelWidth: Style.space(44)
+  readonly property real cellWidth: (width - labelWidth) / Model.GRID_COLUMNS.length
+
+  function mirrored(id) {
+    return weatherId === "raining" && id === "animal-crossing"
+  }
+
+  function isTicked(hour, id) {
+    return Model.ticked(table.p.cfg, weatherId, hour, id)
+  }
+
+  // Columns a row click flips (everything except a mirrored column).
+  readonly property var editableIds: Model.GRID_IDS.filter(function(id) { return !table.mirrored(id) })
 
   spacing: Style.space(2)
 
   Row {
     Item { width: table.labelWidth; height: 1 }
     Repeater {
-      model: Model.GAMES
+      model: Model.GRID_COLUMNS
       delegate: Text {
         id: heading
         required property var modelData
+        readonly property bool mirrored: table.mirrored(modelData.id)
         width: table.cellWidth
         horizontalAlignment: Text.AlignHCenter
         text: modelData.short
-        color: headerMouse.containsMouse ? table.p.foreground : table.p.dim
+        opacity: mirrored ? 0.5 : 1.0
+        color: headerMouse.containsMouse && !mirrored ? table.p.foreground
+          : (modelData.id === Model.KK_ID ? table.p.accent : table.p.dim)
         font.family: table.p.fontFamily
         font.pixelSize: Style.font.caption
         font.bold: true
@@ -43,18 +57,19 @@ Column {
           id: headerMouse
           anchors.fill: parent
           hoverEnabled: true
-          cursorShape: Qt.PointingHandCursor
+          cursorShape: heading.mirrored ? Qt.ArrowCursor : Qt.PointingHandCursor
           onClicked: {
+            if (heading.mirrored) return
             var g = heading.modelData.id
-            var allOn = table.hourList.every(function(h) { return table.grid[String(h)].indexOf(g) >= 0 })
+            var allOn = table.hourList.every(function(h) { return table.isTicked(h, g) })
             table.p.svc.setHoursGames(table.weatherId, table.hourList, [g], !allOn)
           }
         }
 
         PanelToolTip {
           visible: headerMouse.containsMouse
-          text: heading.modelData.id === "animal-crossing" && table.weatherId === "raining"
-            ? "GameCube has no rain music: ticking it here allows its sunny track on rainy days"
+          text: heading.mirrored
+            ? "GameCube has no rain music, so on rainy days it follows your Sunny grid"
             : heading.modelData.tooltip
         }
       }
@@ -85,18 +100,18 @@ Column {
           cursorShape: Qt.PointingHandCursor
           onClicked: {
             var h = hourRow.modelData
-            var allOn = table.grid[String(h)].length === Model.GAME_IDS.length
-            table.p.svc.setHoursGames(table.weatherId, [h], Model.GAME_IDS, !allOn)
+            var allOn = table.editableIds.every(function(id) { return table.isTicked(h, id) })
+            table.p.svc.setHoursGames(table.weatherId, [h], table.editableIds, !allOn)
           }
         }
       }
 
       Repeater {
-        model: Model.GAMES
+        model: Model.GRID_COLUMNS
         delegate: Item {
           id: cell
           required property var modelData
-          readonly property bool checked: table.grid[String(hourRow.modelData)].indexOf(modelData.id) >= 0
+          readonly property bool checked: table.isTicked(hourRow.modelData, modelData.id)
           width: table.cellWidth
           height: Style.space(20)
 
@@ -104,6 +119,7 @@ Column {
             anchors.centerIn: parent
             p: table.p
             checked: cell.checked
+            interactive: !table.mirrored(cell.modelData.id)
             onToggled: table.p.svc.setHoursGames(table.weatherId, [hourRow.modelData], [cell.modelData.id], !cell.checked)
           }
         }

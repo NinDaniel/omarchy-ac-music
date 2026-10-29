@@ -9,20 +9,23 @@ Item {
   property var p
   property bool checked: false
   property bool partial: false
+  // Read-only boxes show their state dimmed and ignore clicks.
+  property bool interactive: true
 
   signal toggled()
 
   implicitWidth: Style.space(20)
   implicitHeight: Style.space(20)
+  opacity: interactive ? 1.0 : 0.35
 
   Rectangle {
     anchors.centerIn: parent
     width: Style.space(14)
     height: width
     radius: Math.min(3, Style.cornerRadius)
-    color: box.checked ? box.p.accent : (mouse.containsMouse ? Style.hoverFillFor(box.p.foreground, box.p.accent) : "transparent")
+    color: box.checked ? box.p.accent : (mouse.containsMouse && box.interactive ? Style.hoverFillFor(box.p.foreground, box.p.accent) : "transparent")
     border.width: box.checked ? 0 : 1
-    border.color: mouse.containsMouse ? box.p.foreground : box.p.dim
+    border.color: mouse.containsMouse && box.interactive ? box.p.foreground : box.p.dim
 
     Rectangle {
       visible: box.partial && !box.checked
@@ -37,7 +40,7 @@ Item {
     id: mouse
     anchors.fill: parent
     hoverEnabled: true
-    cursorShape: Qt.PointingHandCursor
-    onClicked: box.toggled()
+    cursorShape: box.interactive ? Qt.PointingHandCursor : Qt.ArrowCursor
+    onClicked: if (box.interactive) box.toggled()
   }
 }

@@ -51,7 +51,8 @@ Column {
   Text {
     width: parent.width
     text: "Each weather has its own grid, so you can keep New Leaf's rainy 11 AM and skip its sunny one. "
-      + "Click a box for one game and hour, an hour to flip its row, or a game heading to flip its column."
+      + "Tick KK to let Random pick K.K. Slider for that hour. "
+      + "Click a box for one game and hour, an hour to flip its row, or a heading to flip its column."
     color: page.p.dim
     wrapMode: Text.WordWrap
     font.family: page.p.fontFamily
@@ -83,7 +84,7 @@ Column {
   Text {
     visible: page.gridWeather === "raining"
     width: parent.width
-    text: "The GameCube game has no rain music. Ticking GC here lets its sunny track play on rainy days."
+    text: "GameCube has no rain music, so on rainy days it follows your Sunny grid. Its column here just shows that."
     color: page.p.dim
     wrapMode: Text.WordWrap
     font.family: page.p.fontFamily

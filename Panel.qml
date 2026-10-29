@@ -290,12 +290,14 @@ Panel {
             height: settingsButton.implicitHeight
 
             Button {
-              visible: !!root.svc && (root.svc.kkActive || root.cfg.game === "random")
+              readonly property string mode: !root.svc ? "" : (root.svc.betweenActive ? "between" : (root.svc.kkActive ? "kk" : (root.cfg.game === "random" ? "shuffle" : "")))
+              visible: mode !== ""
               anchors.left: parent.left
               bordered: true
-              iconText: root.svc && root.svc.kkActive ? root.iconSkip : root.iconShuffle
-              text: root.svc && root.svc.kkActive ? "Next song" : "Shuffle game"
-              tooltipText: root.svc && root.svc.kkActive ? "Skip to another K.K. song" : "Pick a different game for this hour"
+              iconText: mode === "shuffle" ? root.iconShuffle : root.iconSkip
+              text: mode === "between" ? "Skip to the hour" : (mode === "kk" ? "Next song" : "Shuffle game")
+              tooltipText: mode === "between" ? "Skip K.K. and start this hour's music"
+                : (mode === "kk" ? "Skip to another K.K. song" : "Pick a different game for this hour")
               foreground: root.foreground
               fontFamily: root.fontFamily
               onClicked: root.svc.next()
