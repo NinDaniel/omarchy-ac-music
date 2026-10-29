@@ -114,6 +114,11 @@ function defaultConfig() {
     },
     fade: true,
     notify: false,
+    // Each day from `start` to `end` (hours, same rules as concerts), either
+    // pause the music or turn it down; it comes back when they end.
+    quiet: { enabled: false, start: 23, end: 7, mode: "pause" },
+    // Recently played songs kept in ~/.cache/ac-music, oldest dropped first.
+    cache: { enabled: true, limitMB: 300 },
     // What happens at login: "play", "wait" (stay paused), or "resume".
     atLogin: "play",
     // When another media player plays: "pause", "lower", or "ignore".
@@ -196,6 +201,28 @@ function normalizeKK(raw) {
   }
 }
 
+var CACHE_LIMITS = [100, 300, 500, 1000]
+
+function normalizeQuiet(raw) {
+  var d = defaultConfig().quiet
+  var q = raw && typeof raw === "object" ? raw : {}
+  return {
+    enabled: bool(q.enabled, d.enabled),
+    start: intIn(q.start, 0, 23, d.start),
+    end: intIn(q.end, 1, 24, d.end),
+    mode: pick(q.mode, ["pause", "lower"], d.mode)
+  }
+}
+
+function normalizeCache(raw) {
+  var d = defaultConfig().cache
+  var c = raw && typeof raw === "object" ? raw : {}
+  return {
+    enabled: bool(c.enabled, d.enabled),
+    limitMB: pick(Math.round(Number(c.limitMB)), CACHE_LIMITS, d.limitMB)
+  }
+}
+
 // Fill in anything missing or invalid so the rest of the code can trust it.
 // Hand-edited files and configs from older versions both pass through here.
 function normalizeConfig(raw) {
@@ -216,6 +243,8 @@ function normalizeConfig(raw) {
     kk: normalizeKK(c.kk),
     fade: bool(c.fade, d.fade),
     notify: bool(c.notify, d.notify),
+    quiet: normalizeQuiet(c.quiet),
+    cache: normalizeCache(c.cache),
     atLogin: pick(c.atLogin, ["play", "wait", "resume"], d.atLogin),
     otherMedia: pick(c.otherMedia, ["pause", "lower", "ignore"], d.otherMedia)
   }
@@ -321,17 +350,27 @@ function trackWeather(game, weather) {
 
 // ---- K.K. schedule ------------------------------------------------------
 
-function inConcert(concerts, date) {
-  if (!concerts.enabled || concerts.days.length === 0) return false
+// Whether `date` falls in a window that starts at `start` on one of `days`
+// and ends at `end` (24 = midnight). An end at or before the start runs past
+// midnight: the evening part on a listed day, or the early-morning part on
+// the day after one.
+function inWindow(days, start, end, date) {
   var day = date.getDay()
   var hour = date.getHours()
-  if (concerts.end > concerts.start)
-    return concerts.days.indexOf(day) >= 0 && hour >= concerts.start && hour < concerts.end
-  // Runs past midnight: the evening part on a listed day, or the early-morning
-  // part on the day after one.
+  if (end > start) return days.indexOf(day) >= 0 && hour >= start && hour < end
   var yesterday = (day + 6) % 7
-  return (concerts.days.indexOf(day) >= 0 && hour >= concerts.start)
-    || (concerts.days.indexOf(yesterday) >= 0 && hour < concerts.end)
+  return (days.indexOf(day) >= 0 && hour >= start) || (days.indexOf(yesterday) >= 0 && hour < end)
+}
+
+var EVERY_DAY = [0, 1, 2, 3, 4, 5, 6]
+
+function inConcert(concerts, date) {
+  if (!concerts.enabled || concerts.days.length === 0) return false
+  return inWindow(concerts.days, concerts.start, concerts.end, date)
+}
+
+function inQuiet(quiet, date) {
+  return quiet.enabled && inWindow(EVERY_DAY, quiet.start, quiet.end, date)
 }
 
 // K.K. by schedule (always, or a concert). K.K. picked from the grid is
@@ -350,9 +389,14 @@ function wantsBetween(config, hour) {
   return false
 }
 
-function endLabel(concerts) {
-  if (concerts.end === 24) return "midnight"
-  return hourLabel(concerts.end % 24) + (concerts.end <= concerts.start ? " (next day)" : "")
+function endLabel(window) {
+  if (window.end === 24) return "midnight"
+  return hourLabel(window.end % 24) + (window.end <= window.start ? " (next day)" : "")
+}
+
+function quietText(quiet) {
+  if (!quiet.enabled) return "Off"
+  return (quiet.mode === "lower" ? "Quieter" : "Paused") + " from " + hourLabel(quiet.start) + " to " + endLabel(quiet)
 }
 
 function daysText(days) {
@@ -443,6 +487,19 @@ function kkUrl(version, song) {
   return BASE_URL + "/kk/" + version + "/" + encodeURIComponent(song) + ".ogg"
 }
 
+// Where a server file lives in the song cache, relative to the cache folder
+// (the URL's path after /static/, decoded: "new-leaf/raining/11am.ogg").
+function cacheRelPath(url) {
+  var prefix = BASE_URL + "/"
+  return url.indexOf(prefix) === 0 ? decodeURIComponent(url.substring(prefix.length)) : ""
+}
+
+// mpv's escaping for a value inside a key=value option list: %<bytes>%value.
+function mpvQuote(text) {
+  var bytes = unescape(encodeURIComponent(text)).length
+  return "%" + bytes + "%" + text
+}
+
 // Album cover for a K.K. song (128x128 PNG).
 function kkArtUrl(song) {
   return song ? BASE_URL + "/kk/art/" + encodeURIComponent(song) + ".png" : ""
@@ -522,5 +579,7 @@ function kkSummary(config, songs) {
 function playbackSummary(config) {
   var other = { pause: "Pause", lower: "Lower", ignore: "Keep playing" }[config.otherMedia]
   var login = { play: "Play", wait: "Wait", resume: "Remember" }[config.atLogin]
-  return "Fade " + (config.fade ? "on" : "off") + " · " + other + " for other media · " + login + " at login"
+  var parts = ["Fade " + (config.fade ? "on" : "off"), other + " for other media", login + " at login"]
+  if (config.quiet.enabled) parts.push("quiet " + hourLabel(config.quiet.start) + " to " + endLabel(config.quiet))
+  return parts.join(" · ")
 }

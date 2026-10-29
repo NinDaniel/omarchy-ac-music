@@ -22,6 +22,7 @@ Nothing is stored on your machine. Tracks stream on demand.
 - [Install](#install)
 - [The bar icon](#the-bar-icon)
 - [The panel](#the-panel)
+- [Media keys](#media-keys)
 - [Settings](#settings)
   - [Hourly music](#hourly-music)
   - [K.K. Slider](#kk-slider)
@@ -32,6 +33,8 @@ Nothing is stored on your machine. Tracks stream on demand.
 - [Updating and uninstalling](#updating-and-uninstalling)
 - [Troubleshooting](#troubleshooting)
 - [Network and privacy](#network-and-privacy)
+- [Development](#development)
+- [Ideas for later](#ideas-for-later)
 - [Credits](#credits)
 
 ## Features
@@ -48,6 +51,9 @@ Nothing is stored on your machine. Tracks stream on demand.
 - **Seamless loops:** each song loops at the game's own loop point instead of restarting its intro.
 - **Steps aside for other media:** when YouTube Music, Spotify, a video, or any other player starts, the music pauses or turns down. It comes back by itself when that stops.
 - **Your choice at login:** start playing, wait for you to press play, or pick up where you left off.
+- **Media keys:** your keyboard's play/pause key, headset buttons, and Omarchy's media controls all work, with the game and hour as the track title.
+- **Sleep timer and quiet hours:** fade out after 15 minutes to an hour and a half, or pause (or turn down) the music at the same time every night and bring it back in the morning.
+- **Light on data:** recently played songs are kept in a small cache, and the next hour's song is fetched ahead of time, so the hour changes instantly.
 - **Fits Omarchy:** uses Omarchy's own panel styling, follows your theme, and works with any bar position.
 - **Scriptable:** a small `ac-music` command for terminals and keybinds.
 
@@ -106,6 +112,22 @@ From top to bottom:
 | `s`         | Switch between the panel and Settings       |
 | `Esc`       | Go back one page, or close the panel        |
 | `Tab`       | Move to the neighbouring bar panel          |
+
+## Media keys
+
+The music shows up in your system's media controls as **AC Music**, with titles
+like *New Horizons · 11 AM · Sunny* or *K.K. Bossa · K.K. Slider (Live)*. So:
+
+- Your keyboard's **play/pause** key and headset buttons play and pause it (when it's the active player).
+- **Omarchy's media widget** and anything else that shows what's playing can see and control it.
+- Pausing it there pauses it everywhere: the panel's switch follows along, and the choice is saved.
+- Pressing play while it's on hold for another player plays it anyway.
+
+This uses `mpv-mpris`, which is part of Omarchy's standard install. Without it,
+everything else still works and only the media keys don't.
+
+Next/previous track keys don't do anything here. Use the panel's
+Shuffle / Next / Skip button (or `ac-music next`) instead.
 
 ## Settings
 
@@ -255,7 +277,10 @@ that.
 
 ### Playback
 
-<img src="docs/playback.png" width="48%" alt="Playback settings">
+<p>
+  <img src="docs/playback.png" width="48%" alt="Playback settings">
+  <img src="docs/playback-more.png" width="48%" alt="Sleep timer, quiet hours, and song cache">
+</p>
 
 | Setting                 | What it does |
 |-------------------------|--------------|
@@ -288,6 +313,40 @@ for example) won't trigger it.
 
 Only a real login counts. Restarting the Omarchy shell or updating the plugin
 keeps whatever was already happening.
+
+#### Sleep timer
+
+Fades the music out over about 8 seconds and pauses it after **15, 30, or 45
+minutes**, **1 hour**, **90 minutes**, or **at the end of this hour** (just
+before the next hour's music would start). While it's running, the panel shows
+*Sleep timer: stops in 23 min*. Choose **Off** to cancel.
+
+It lasts for this session only, so it never carries over to your next login.
+Press play to start the music again; the volume is back where you left it.
+
+#### Quiet hours
+
+Every day between two hours you choose, the music either **pauses** or plays at
+**a quarter of your volume**. The times work like concerts: an end at or before
+the start runs past midnight, so *11 PM to 7 AM* covers the night. The panel
+says *Paused for quiet hours until 7 AM* while they're on.
+
+When quiet hours end, the music comes back on its own, so it doubles as a
+gentle wake-up. If you paused the music yourself, it stays paused.
+
+#### Song cache
+
+Songs you've heard are kept in `~/.cache/ac-music`, so the same hour's theme
+isn't downloaded again every day. In the last ten minutes of each hour, the
+next hour's song is fetched ahead of time, so the hour change starts instantly.
+
+- **Keep recent songs on disk:** on by default. Off means every song streams fresh.
+- **Size limit:** 100 MB, 300 MB (default), 500 MB, or 1 GB. Once it's full, the songs played least recently are deleted first. A typical song is 3 to 7 MB, so 300 MB holds around 60.
+- **Using … MB** shows how much it's using right now.
+- **Clear cache** deletes everything in it. Songs download again as needed.
+
+It's an ordinary cache folder: deleting it yourself is always safe. Songs are
+downloaded to a temporary file first, so a cut-off download is never played.
 
 ### Weather & about
 
@@ -326,6 +385,8 @@ ln -s ~/.config/omarchy/plugins/danr.ac-music/bin/ac-music ~/.local/bin/ac-music
 | `ac-music weather <mode>`  | `auto`, `sunny`, `rain`, or `snow` |
 | `ac-music volume <n>`      | Set the volume (`50`) or nudge it (`+5`, `-10`) |
 | `ac-music kk [on\|off]`    | K.K. all the time; toggles with no argument |
+| `ac-music sleep <n>`       | Sleep timer: minutes (`30`), `hour` for the end of this hour, or `off` |
+| `ac-music clear-cache`     | Delete the song cache |
 | `ac-music panel`           | Open or close the panel |
 | `ac-music settings`        | Open the panel on Settings |
 
@@ -366,6 +427,12 @@ Anything missing or invalid falls back to its default.
 | `fade`           | `true` / `false` | `true` |
 | `notify`         | `true` / `false` | `false` |
 | `otherMedia`     | `pause`, `lower`, `ignore` | `pause` |
+| `quiet.enabled`  | `true` / `false` | `false` |
+| `quiet.start`    | `0` to `23` (hour) | `23` |
+| `quiet.end`      | `1` to `24` (hour; at or before `start` means the next day) | `7` |
+| `quiet.mode`     | `pause`, `lower` | `pause` |
+| `cache.enabled`  | `true` / `false` | `true` |
+| `cache.limitMB`  | `100`, `300`, `500`, `1000` | `300` |
 | `atLogin`        | `play`, `wait`, `resume` | `play` |
 
 For example, to keep New Leaf out of sunny 11 AMs but keep it on rainy ones
@@ -398,6 +465,7 @@ Uninstall:
 ```bash
 omarchy plugin remove danr.ac-music
 rm ~/.config/omarchy/ac-music.json    # optional: your settings
+rm -rf ~/.cache/ac-music               # optional: cached songs
 ```
 
 ## Troubleshooting
@@ -416,23 +484,59 @@ Weather location. Set the right one in Omarchy's weather widget.
 
 **Changes after an update don't show up.** Run `omarchy restart shell`.
 
+**The play/pause key controls a different player.** Media keys go to whichever
+player Omarchy considers active. Pause the other player, or use
+`ac-music toggle` on a keybind of your own.
+
 **The leaf is missing from the bar.** Run `omarchy plugin enable danr.ac-music --section right`.
 
 ## Network and privacy
 
 The plugin talks to three services:
 
-- **acmusicext.com:** the music itself. One song (usually 3 to 7 MB) per track
-  change: once an hour normally, at every switch in *Every few minutes* mode,
-  once per song whenever K.K. plays (concerts, K.K. hours, between-hours songs),
-  and once per preview, plus a small album cover (about 20 KB) for each K.K.
-  song shown in the panel. Loops replay from memory and don't download again.
+- **acmusicext.com:** the music itself, one song (usually 3 to 7 MB) at a time.
+  With the [song cache](#song-cache) on, each song downloads once and replays
+  from disk until it's trimmed, and the next hour's song is fetched in the last
+  ten minutes of the hour. With it off, a song downloads every time it starts:
+  hourly, at every switch in *Every few minutes* mode, once per K.K. song, and
+  once per preview. Loops always replay from memory. K.K. album covers (about
+  20 KB each) load when the panel shows them.
 - **api.open-meteo.com:** current weather for your coordinates, every 20 minutes,
   only while Weather is on *Auto*.
 - **wttr.in:** only when Omarchy's weather widget has no location set, to work
   out roughly where you are (the same thing the weather widget does).
 
 There's no account, no analytics, and nothing is sent anywhere else.
+
+## Development
+
+The plugin is plain QML plus two JavaScript libraries: `Model.js` (all the
+rules: picking games, schedules, migration) and `Data.js` (loop points and the
+K.K. song list). The rules are covered by tests that run in plain Node, with no
+Quickshell needed:
+
+```bash
+node --test tests/
+```
+
+GitHub runs the same tests on every push and pull request
+([`.github/workflows/test.yml`](.github/workflows/test.yml)), along with a
+syntax check of the shell scripts and the manifest. `omarchy plugin validate .`
+checks the plugin the way Omarchy will.
+
+To work on a local copy, clone it into `~/.config/omarchy/plugins/danr.ac-music`.
+Changes to the panel reload on their own. Changes to `Service.qml` or the
+JavaScript files need `omarchy restart shell`.
+
+## Ideas for later
+
+Not planned right now, but contributions are welcome:
+
+- **Town tune at the hour.** Like the town hall bells in the games: a short tune
+  you compose plays as the hour changes. The extension's bell sounds would make
+  this possible; it needs a small tune editor.
+- **Holiday and event music** (Halloween, Toy Day, and so on), if the music
+  server ever adds those tracks. It doesn't have them today.
 
 ## Credits
 

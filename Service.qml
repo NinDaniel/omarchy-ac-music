@@ -49,8 +49,17 @@ Item {
   property string otherMediaName: ""
   readonly property bool heldPaused: otherMediaHold && config.otherMedia === "pause"
   readonly property bool heldQuiet: otherMediaHold && config.otherMedia === "lower"
+  // Quiet hours: paused or turned down during the set window each day.
+  readonly property bool quietNow: Model.inQuiet(config.quiet, now)
+  readonly property bool quietPaused: quietNow && config.quiet.mode === "pause"
+  readonly property bool quietLowered: quietNow && config.quiet.mode === "lower"
   // Actually making sound: the user wants music and nothing is holding it.
-  readonly property bool audible: playing && !heldPaused
+  readonly property bool audible: playing && !heldPaused && !quietPaused
+  // Sleep timer: when to fade out and pause (ms since epoch; 0 = off).
+  property real sleepAt: 0
+  property int sleepMinutesLeft: 0
+  // Option picked in Settings: "off", "hour", or a number of minutes.
+  property string sleepChoice: "off"
   // K.K. by schedule (always or a concert), or picked from the hourly grid.
   readonly property bool kkScheduled: Model.isKKTime(config, now)
   readonly property bool kkActive: kkScheduled || game === Model.KK_ID
@@ -62,7 +71,7 @@ Item {
   // Changing this string is what triggers a track change. Waiting for the
   // first weather answer (briefly) avoids playing sunny music for a second
   // and then swapping to rain.
-  readonly property bool ready: configLoaded && loginApplied && (!autoWeather || liveWeather !== "" || weatherGrace.expired)
+  readonly property bool ready: configLoaded && loginApplied && mprisChecked && (!autoWeather || liveWeather !== "" || weatherGrace.expired)
   readonly property string trackKey: {
     if (!ready) return ""
     if (betweenActive) return "between|" + hour
@@ -92,14 +101,36 @@ Item {
     return Model.hourLabel(hour) + " · " + Model.weatherName(weather)
   }
 
+  // ---- Song cache (~/.cache/ac-music) ----
+  readonly property string cacheDir: (Quickshell.env("XDG_CACHE_HOME") || home + "/.cache") + "/ac-music"
+  readonly property string fetchScript: {
+    var url = String(Qt.resolvedUrl("bin/cache-fetch"))
+    return decodeURIComponent(url.indexOf("file://") === 0 ? url.substring(7) : url)
+  }
+  // Relative paths of songs already on disk.
+  property var cached: ({})
+  property real cacheBytes: -1
+  property var downloadQueue: []
+  property string prefetchedFor: ""
+
   // ---- mpv ----
+  // mpv-mpris (part of Omarchy's base install) makes mpv a system media
+  // player, so media keys and Omarchy's media controls work.
+  property string mprisScript: ""
+  property bool mprisChecked: false
+  // Last pause state we asked mpv for; a change we didn't ask for came from
+  // the media keys or the media widget.
+  property bool expectedPause: false
   property bool mpvReady: false
   property var pending: []
   property real appliedVolume: -1
   property bool fading: false
   property string loadedKey: ""
 
-  Component.onCompleted: AcBridge.Bridge.service = root
+  Component.onCompleted: {
+    AcBridge.Bridge.service = root
+    rescanCache()
+  }
   Component.onDestruction: {
     if (AcBridge.Bridge.service === root) AcBridge.Bridge.service = null
     mpvProc.running = false
@@ -254,10 +285,16 @@ Item {
     }
   }
 
+  // mpv-mpris names the player after mpv's audio client name ("AC Music"),
+  // e.g. org.mpris.MediaPlayer2.mpv.AC_Music.instance-XXXX.
+  function isOwnPlayer(p) {
+    return String(p.dbusName).indexOf("org.mpris.MediaPlayer2.mpv.AC_Music") === 0
+  }
+
   function playingOtherPlayer() {
     for (var i = 0; i < mprisPlayers.length; i++) {
       var p = mprisPlayers[i]
-      if (p && p.isPlaying) return p
+      if (p && p.isPlaying && !isOwnPlayer(p)) return p
     }
     return null
   }
@@ -315,6 +352,176 @@ Item {
         root.now = d
       }
       root.syncSlot(d)
+      if (root.sleepAt > 0) {
+        if (d.getTime() >= root.sleepAt) {
+          root.sleepAt = 0
+          root.sleepMinutesLeft = 0
+          root.sleepChoice = "off"
+          sleepFade.begin()
+        } else {
+          root.sleepMinutesLeft = Math.ceil((root.sleepAt - d.getTime()) / 60000)
+        }
+      }
+      if (root.audible && root.config.cache.enabled && d.getMinutes() >= 50) root.prefetchNextHour(d)
+    }
+  }
+
+  // ---- Sleep timer -------------------------------------------------------
+
+  // minutes > 0: stop after that long; -1: at the end of this hour; 0: cancel.
+  function setSleep(minutes) {
+    sleepFade.stop()
+    if (fading) restoreVolume()
+    var d = new Date()
+    sleepChoice = minutes === 0 ? "off" : (minutes < 0 ? "hour" : String(minutes))
+    if (minutes === 0) {
+      sleepAt = 0
+    } else if (minutes < 0) {
+      // Finish the fade just before the hour so the next hour never starts.
+      var end = new Date(d)
+      end.setMinutes(59, 50, 0)
+      sleepAt = end.getTime()
+    } else {
+      sleepAt = d.getTime() + minutes * 60000
+    }
+    sleepMinutesLeft = sleepAt > 0 ? Math.max(1, Math.ceil((sleepAt - d.getTime()) / 60000)) : 0
+  }
+
+  // Slow fade (about 8 seconds), then pause.
+  Timer {
+    id: sleepFade
+    interval: 200
+    repeat: true
+    property int step: 0
+    readonly property int steps: 40
+    function begin() {
+      if (!root.audible) {
+        root.setPlaying(false)
+        return
+      }
+      root.fading = true
+      step = 0
+      restart()
+    }
+    onTriggered: {
+      step++
+      root.send(["set_property", "volume", Math.max(0, Math.round(root.targetVolume() * (1 - step / steps)))])
+      if (step >= steps) {
+        stop()
+        root.setPlaying(false)
+        root.restoreVolume()
+      }
+    }
+  }
+
+  // ---- Song cache --------------------------------------------------------
+
+  // Local copy of a server file when we have it; otherwise the URL, and the
+  // file is fetched in the background for next time.
+  function sourceFor(url) {
+    if (!config.cache.enabled) return url
+    var rel = Model.cacheRelPath(url)
+    if (!rel) return url
+    if (cached[rel]) {
+      var path = cacheDir + "/" + rel
+      // Mark it recently played so trimming keeps it.
+      Quickshell.execDetached(["touch", "-c", path])
+      return path
+    }
+    queueDownload(url)
+    return url
+  }
+
+  function queueDownload(url) {
+    var rel = Model.cacheRelPath(url)
+    if (!config.cache.enabled || !rel || cached[rel]) return
+    if (downloadQueue.indexOf(url) >= 0 || (downloadProc.running && downloadProc.url === url)) return
+    downloadQueue = downloadQueue.concat([url])
+    pumpDownloads()
+  }
+
+  function pumpDownloads() {
+    if (downloadProc.running || downloadQueue.length === 0) return
+    var url = downloadQueue[0]
+    downloadQueue = downloadQueue.slice(1)
+    downloadProc.url = url
+    downloadProc.command = ["bash", fetchScript, url, cacheDir, Model.cacheRelPath(url), String(config.cache.limitMB * 1048576)]
+    downloadProc.running = true
+  }
+
+  // In the last ten minutes of an hour, fetch the next hour's song so the
+  // hour change starts instantly.
+  function prefetchNextHour(d) {
+    var next = new Date(d.getTime() + 15 * 60000)
+    var key = Model.dateKey(next) + "|" + next.getHours()
+    if (prefetchedFor === key) return
+    prefetchedFor = key
+    if (Model.isKKTime(config, next)) return
+    var g = Model.pickGame(config, Model.dateKey(next), next.getHours(), 0, 0, weather)
+    if (g === Model.KK_ID) return
+    queueDownload(Model.hourlyUrl(g, Model.trackWeather(g, weather), next.getHours()))
+  }
+
+  function rescanCache() {
+    if (cacheIndexProc.running) return
+    cacheIndexProc.command = ["find", cacheDir, "-type", "f", "-name", "*.ogg", "-printf", "%P\\n"]
+    cacheIndexProc.running = true
+  }
+
+  function refreshCacheSize() {
+    if (cacheSizeProc.running) return
+    cacheSizeProc.command = ["du", "-sb", cacheDir]
+    cacheSizeProc.running = true
+  }
+
+  function clearCache() {
+    downloadQueue = []
+    Quickshell.execDetached(["rm", "-rf", cacheDir])
+    cached = {}
+    cacheBytes = 0
+  }
+
+  Process {
+    id: downloadProc
+    property string url: ""
+    onExited: function(exitCode) {
+      root.rescanCache()
+      root.pumpDownloads()
+    }
+  }
+
+  Process {
+    id: cacheIndexProc
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var map = {}
+        text.split("\n").forEach(function(line) { if (line) map[line] = true })
+        root.cached = map
+        root.refreshCacheSize()
+      }
+    }
+  }
+
+  Process {
+    id: cacheSizeProc
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var bytes = parseInt(String(text).split("\t")[0], 10)
+        root.cacheBytes = isNaN(bytes) ? 0 : bytes
+      }
+    }
+  }
+
+  // Look for mpv-mpris once; mpv starts after this (see `ready`).
+  Process {
+    id: mprisCheck
+    running: true
+    command: ["sh", "-c", "for f in /usr/lib/mpv-mpris/mpris.so /etc/mpv/scripts/mpris.so; do [ -f \"$f\" ] && { echo \"$f\"; exit 0; }; done; exit 0"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        root.mprisScript = String(text).trim()
+        root.mprisChecked = true
+      }
     }
   }
 
@@ -333,8 +540,10 @@ Item {
     syncOtherMediaMode()
   }
   onHeldQuietChanged: syncVolume()
+  onQuietLoweredChanged: syncVolume()
 
   function send(args) {
+    if (args[0] === "set_property" && args[1] === "pause") expectedPause = !!args[2]
     var line = JSON.stringify({ command: args }) + "\n"
     if (!mpvReady) { pending.push(line); return }
     ipc.write(line)
@@ -352,7 +561,7 @@ Item {
   }
 
   function targetVolume() {
-    return Math.round(config.volume * (heldQuiet ? 0.25 : 1) * 100)
+    return Math.round(config.volume * (heldQuiet || quietLowered ? 0.25 : 1) * 100)
   }
 
   function syncVolume() {
@@ -406,7 +615,9 @@ Item {
     var opts = "loop-file=inf"
     if (loop && loop[1] > loop[0]) opts += ",ab-loop-a=" + loop[0] + ",ab-loop-b=" + loop[1]
     else opts += ",ab-loop-a=no,ab-loop-b=no"
-    send(["loadfile", Model.hourlyUrl(game, trackWeather, hour), "replace", -1, opts])
+    var title = Model.gameName(game) + " · " + Model.hourLabel(hour) + " · " + Model.weatherName(trackWeather)
+    opts += ",force-media-title=" + Model.mpvQuote(title)
+    send(["loadfile", sourceFor(Model.hourlyUrl(game, trackWeather, hour)), "replace", -1, opts])
     send(["set_property", "pause", !audible])
     restoreVolume()
     notifyTrack(Model.gameName(game), Model.hourLabel(hour) + " · " + Model.weatherName(trackWeather))
@@ -419,9 +630,14 @@ Item {
     kkSong = choice.song
     kkVersionPlaying = choice.version
     lastError = ""
-    send(["loadfile", Model.kkUrl(choice.version, choice.song), "replace", -1, "loop-file=no,ab-loop-a=no,ab-loop-b=no"])
+    send(["loadfile", sourceFor(Model.kkUrl(choice.version, choice.song)), "replace", -1, kkOptions(choice.song, choice.version)])
     send(["set_property", "pause", !audible])
     restoreVolume()
+  }
+
+  function kkOptions(song, version) {
+    var title = Model.kkTitle(song) + " · K.K. Slider (" + Model.versionName(version) + ")"
+    return "loop-file=no,ab-loop-a=no,ab-loop-b=no,force-media-title=" + Model.mpvQuote(title)
   }
 
   function playNextKK() {
@@ -452,7 +668,7 @@ Item {
     previewSong = song
     previewVersion = version
     loadedKey = "preview"
-    send(["loadfile", Model.kkUrl(version, song), "replace", -1, "loop-file=no,ab-loop-a=no,ab-loop-b=no"])
+    send(["loadfile", sourceFor(Model.kkUrl(version, song)), "replace", -1, kkOptions(song, version)])
     send(["set_property", "pause", false])
     restoreVolume()
   }
@@ -468,6 +684,10 @@ Item {
   function handleMpvLine(line) {
     var msg
     try { msg = JSON.parse(line) } catch (e) { return }
+    if (msg.event === "property-change" && msg.name === "pause") {
+      handleExternalPause(!!msg.data)
+      return
+    }
     if (msg.event !== "end-file") return
     if (msg.reason === "eof" && loadedKey === "preview") {
       stopPreview()
@@ -481,6 +701,24 @@ Item {
     } else if (msg.reason === "error") {
       lastError = "Couldn't reach the music server"
       retryTimer.restart()
+    }
+  }
+
+  // Media keys or the media widget paused/resumed mpv directly: follow along
+  // so the panel and the saved play state stay in sync.
+  function handleExternalPause(paused) {
+    if (paused === expectedPause) return
+    expectedPause = paused
+    if (paused) {
+      if (playing) setPlaying(false)
+      return
+    }
+    if (!playing) setPlaying(true)
+    // Pressing play while another player had us on hold means "play anyway".
+    if (otherMediaHold) {
+      holdTimer.stop()
+      releaseTimer.stop()
+      otherMediaHold = false
     }
   }
 
@@ -518,7 +756,7 @@ Item {
     command: [
       "mpv",
       "--no-config",
-      // No mpris script either, so our own mpv never shows up as "other media".
+      // No auto-loaded scripts; mpv-mpris is loaded explicitly below.
       "--load-scripts=no",
       "--idle=yes",
       "--no-video",
@@ -528,7 +766,7 @@ Item {
       "--demuxer-max-back-bytes=64MiB",
       "--audio-client-name=AC Music",
       "--input-ipc-server=" + root.socketPath
-    ]
+    ].concat(root.mprisScript ? ["--script=" + root.mprisScript] : [])
     onRunningChanged: {
       if (!running) {
         root.mpvReady = false
@@ -576,6 +814,7 @@ Item {
       if (!connected) return
       connectRetry.stop()
       root.mpvReady = true
+      ipc.write(JSON.stringify({ command: ["observe_property", 1, "pause"] }) + "\n")
       var queued = root.pending
       root.pending = []
       queued.forEach(function(line) { ipc.write(line) })
@@ -682,10 +921,26 @@ Item {
     function play(): string { root.setPlaying(true); return "playing" }
     function pause(): string { root.setPlaying(false); return "paused" }
     function next(): string { root.next(); return "ok" }
+    function sleep(arg: string): string {
+      if (arg === "off" || arg === "0") root.setSleep(0)
+      else if (arg === "hour") root.setSleep(-1)
+      else {
+        var m = parseInt(arg, 10)
+        if (isNaN(m) || m <= 0) return "usage: sleep <minutes | hour | off>"
+        root.setSleep(m)
+      }
+      return root.sleepAt > 0 ? "stopping in " + root.sleepMinutesLeft + " min" : "sleep timer off"
+    }
+    function clearCache(): string { root.clearCache(); return "cache cleared" }
     function requestView(view: string): string { root.requestedView = view; return "ok" }
     function status(): string {
-      var state = !root.playing ? "Paused" : (root.heldPaused ? "On hold for " + root.otherMediaName : (root.heldQuiet ? "Quieter for " + root.otherMediaName : "Playing"))
-      return state + ": " + root.title + " - " + root.subtitle
+      var state = !root.playing ? "Paused"
+        : root.quietPaused ? "Quiet hours"
+        : root.heldPaused ? "On hold for " + root.otherMediaName
+        : root.heldQuiet ? "Quieter for " + root.otherMediaName
+        : root.quietLowered ? "Playing (quiet hours)" : "Playing"
+      var sleep = root.sleepAt > 0 ? " (stops in " + root.sleepMinutesLeft + " min)" : ""
+      return state + ": " + root.title + " - " + root.subtitle + sleep
     }
     function game(id: string): string {
       if (id !== "random" && Model.GAME_IDS.indexOf(id) < 0) return "unknown game: " + id + " (try " + Model.GAME_IDS.join(", ") + ", random)"

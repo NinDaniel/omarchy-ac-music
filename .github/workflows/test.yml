@@ -1,0 +1,27 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Model and data tests
+        run: node --test tests/
+
+      - name: Shell scripts parse
+        run: |
+          for script in bin/*; do
+            bash -n "$script"
+          done
+
+      - name: Manifest is valid JSON
+        run: jq empty manifest.json

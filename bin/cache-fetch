@@ -1,0 +1,25 @@
+#!/bin/bash
+# Download one song into the AC Hourly Music cache, then trim the cache to
+# its size limit by deleting the least recently played songs first.
+#
+# Usage: cache-fetch <url> <cache-dir> <relative-path> <limit-bytes>
+
+set -u
+
+url=$1 dir=$2 rel=$3 cap=$4
+dest="$dir/$rel"
+
+mkdir -p "$(dirname "$dest")" || exit 1
+
+# Download to a .part file so a cut-off download is never played as a song.
+if ! curl -fsS --max-time 180 -o "$dest.part" "$url"; then
+  rm -f "$dest.part"
+  exit 1
+fi
+mv -f "$dest.part" "$dest"
+
+# Newest first (playing a cached song touches it); delete once over the cap.
+find "$dir" -type f -name '*.ogg' -printf '%T@\t%s\t%p\n' \
+  | sort -rn \
+  | awk -F'\t' -v cap="$cap" '{ total += $2; if (total > cap) print $3 }' \
+  | while IFS= read -r old; do rm -f -- "$old"; done

@@ -163,7 +163,7 @@ Panel {
             width: parent.width
             title: root.svc ? root.svc.title : "AC Hourly Music"
             meta: root.svc ? root.svc.subtitle : "Starting…"
-            detail: !root.playing ? "Paused" : (root.held ? "On hold" : "")
+            detail: !root.playing ? "Paused" : (root.svc && root.svc.quietPaused ? "Quiet hours" : (root.held ? "On hold" : ""))
             foreground: root.foreground
             fontFamily: root.fontFamily
             iconOpacity: root.audible ? 1.0 : 0.5
@@ -293,6 +293,27 @@ Panel {
             width: parent.width
             text: root.weatherCaption()
             color: root.dim
+            wrapMode: Text.WordWrap
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          Text {
+            visible: root.view === "main" && !!root.svc && root.playing && root.svc.quietNow
+            width: parent.width
+            text: root.svc ? (root.cfg.quiet.mode === "lower" ? "Quieter" : "Paused") + " for quiet hours until "
+              + Model.endLabel(root.cfg.quiet).replace(" (next day)", "") + "." : ""
+            color: root.accent
+            wrapMode: Text.WordWrap
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          Text {
+            visible: root.view === "main" && !!root.svc && root.svc.sleepAt > 0
+            width: parent.width
+            text: root.svc ? "Sleep timer: stops in " + root.svc.sleepMinutesLeft + " min." : ""
+            color: root.accent
             wrapMode: Text.WordWrap
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall

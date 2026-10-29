@@ -15,6 +15,8 @@ Usage: ac-music <command> [arg]
   weather <mode>            auto, sunny, rain, snow
   volume <n | +n | -n>      Set or nudge the volume (0-100)
   kk [on|off]               K.K. Slider all the time (toggles with no argument)
+  sleep <min | hour | off>  Fade out and pause after a while
+  clear-cache               Delete cached songs (~/.cache/ac-music)
   panel                     Open the bar popup
   settings                  Open the bar popup on Settings
 USAGE
@@ -29,6 +31,11 @@ case $cmd in
     exec omarchy-shell danr.ac-music "$cmd" "$2" ;;
   kk)
     exec omarchy-shell danr.ac-music kk "${2:-toggle}" ;;
+  sleep)
+    [[ -n ${2:-} ]] || { usage; exit 1; }
+    exec omarchy-shell danr.ac-music sleep "$2" ;;
+  clear-cache)
+    exec omarchy-shell danr.ac-music clearCache ;;
   panel)
     exec omarchy-shell shell toggle danr.ac-music ;;
   settings)
