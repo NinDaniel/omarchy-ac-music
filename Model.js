@@ -95,6 +95,11 @@ function defaultConfig() {
     volume: 0.5,
     game: "new-horizons",
     weather: "auto",
+    // What overcast or foggy skies count as on Auto: "sunny", "showers" (rain
+    // or snow only if showers are around), or "always".
+    cloudy: "showers",
+    // Random leaves the GameCube game out in the rain (it has no rain music).
+    skipGCRain: true,
     // "hourly", "daily", or "interval" (a new game every shuffleMinutes).
     randomMode: "hourly",
     shuffleMinutes: 15,
@@ -239,6 +244,8 @@ function normalizeConfig(raw) {
     volume: isNaN(volume) ? d.volume : Math.max(0, Math.min(1, volume)),
     game: pick(c.game, GAME_IDS.concat(["random"]), d.game),
     weather: pick(c.weather, ["auto"].concat(WEATHERS), d.weather),
+    cloudy: pick(c.cloudy, ["sunny", "showers", "always"], d.cloudy),
+    skipGCRain: bool(c.skipGCRain, d.skipGCRain),
     randomMode: pick(c.randomMode, ["hourly", "daily", "interval"], d.randomMode),
     shuffleMinutes: isNaN(minutes) ? d.shuffleMinutes : Math.max(1, Math.min(60, minutes)),
     hours: normalizeHours(c.hours),
@@ -278,12 +285,18 @@ function ticked(config, weather, hour, id) {
   return config.hours[w][String(hour)].indexOf(id) >= 0
 }
 
+// Whether Random leaves a game out in this weather whatever the grid says.
+function skippedInWeather(config, weather, id) {
+  return config.skipGCRain && weather === "raining" && id === "animal-crossing"
+}
+
 // Games (and possibly K.K.) allowed for an hour by the grids. An hour with
 // nothing ticked falls back to the four games rather than going silent.
 function allowedGames(config, hour, weather) {
   var w = config.hours[weather] ? weather : "sunny"
-  var list = GRID_IDS.filter(function(id) { return ticked(config, w, hour, id) })
-  return list.length > 0 ? list : GAME_IDS.slice()
+  var playable = function(id) { return !skippedInWeather(config, w, id) }
+  var list = GRID_IDS.filter(function(id) { return playable(id) && ticked(config, w, hour, id) })
+  return list.length > 0 ? list : GAME_IDS.filter(playable)
 }
 
 // How many of the four games' boxes are unticked across all three weathers
@@ -343,6 +356,16 @@ function pickGame(config, day, hour, salt, slot, weather) {
     if (allowed.indexOf(daily) >= 0) return daily
   }
   return allowed[hash(day + "|" + hour + "|" + salt) % allowed.length]
+}
+
+// The next salt that changes what's picked, so Shuffle always moves to a
+// different game (when the hour allows more than one).
+function differentSalt(config, day, hour, salt, slot, weather) {
+  var current = pickGame(config, day, hour, salt, slot, weather)
+  for (var s = salt + 1; s <= salt + 64; s++) {
+    if (pickGame(config, day, hour, s, slot, weather) !== current) return s
+  }
+  return salt + 1
 }
 
 // The original GameCube game has no rain music; it plays its sunny theme.
@@ -594,6 +617,36 @@ function weatherFromWmo(code) {
   if ([71, 73, 75, 77, 85, 86].indexOf(c) >= 0) return "snowing"
   if ((c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95) return "raining"
   return "sunny"
+}
+
+// What an Open-Meteo answer means for the music: { weather, label }. A single
+// reading can say "overcast" between two bursts of drizzle, so with cloudy set
+// to "showers" an overcast sky counts as wet if the nearby hours are. Wet means
+// snow at or below freezing, or if those hours were snowy.
+function skyFromForecast(data, cloudy) {
+  var code = Number(data.current.weather_code)
+  var weather = weatherFromWmo(code)
+  if (weather !== "sunny") return { weather: weather, label: weatherName(weather) }
+  if ([3, 45, 48].indexOf(code) < 0) return { weather: "sunny", label: "Sunny" }
+
+  var label = code === 3 ? "Cloudy" : "Foggy"
+  var hourly = data.hourly || {}
+  var codes = (hourly.weather_code || []).map(weatherFromWmo)
+  var showers = codes.some(function(w) { return w !== "sunny" })
+    || (hourly.precipitation || []).some(function(mm) { return mm > 0 })
+  if (cloudy === "sunny" || (cloudy === "showers" && !showers)) return { weather: "sunny", label: label }
+
+  var snowy = Number(data.current.temperature_2m) <= 0 || codes.indexOf("snowing") >= 0
+  var note = cloudy === "always"
+    ? "counts as " + (snowy ? "snow" : "rain")
+    : (snowy ? "flurries" : "showers") + " nearby"
+  return { weather: snowy ? "snowing" : "raining", label: label + ", " + note }
+}
+
+// City to look up from a system timezone: "America/Winnipeg" -> "Winnipeg".
+function cityFromTimezone(zone) {
+  var parts = String(zone || "").trim().split("/")
+  return parts.length > 1 ? parts[parts.length - 1].replace(/_/g, " ") : ""
 }
 
 // Location from Omarchy's weather widget state file, if it has coordinates.

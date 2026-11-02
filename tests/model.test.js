@@ -222,6 +222,91 @@ test("weather codes map to sunny, raining, or snowing", () => {
     ["sunny", "sunny", "sunny", "raining", "raining", "raining", "snowing", "snowing", "raining", "snowing", "raining"])
 })
 
+test("overcast skies follow the cloudy setting", () => {
+  const sky = (code, hourlyCodes, opts = {}) => ({
+    current: { weather_code: code, temperature_2m: opts.temp ?? 13 },
+    hourly: { weather_code: hourlyCodes, precipitation: opts.mm ?? hourlyCodes.map(() => 0) }
+  })
+  const showery = sky(3, [51, 3, 51, 3], { mm: [0.1, 0, 0.1, 0] })
+  const dry = sky(3, [3, 3, 3, 3])
+
+  assert.deepEqual(Model.skyFromForecast(showery, "sunny"), { weather: "sunny", label: "Cloudy" })
+  assert.deepEqual(Model.skyFromForecast(showery, "showers"), { weather: "raining", label: "Cloudy, showers nearby" })
+  assert.deepEqual(Model.skyFromForecast(dry, "showers"), { weather: "sunny", label: "Cloudy" })
+  assert.deepEqual(Model.skyFromForecast(dry, "always"), { weather: "raining", label: "Cloudy, counts as rain" })
+  assert.equal(Model.skyFromForecast(sky(45, [45, 45]), "always").label, "Foggy, counts as rain")
+  // Rain by amount alone, with no rainy code.
+  assert.equal(Model.skyFromForecast(sky(3, [3, 3], { mm: [0.2, 0] }), "showers").weather, "raining")
+
+  // Freezing, or snowy hours nearby, make it snow rather than rain.
+  assert.equal(Model.skyFromForecast(sky(3, [3, 3], { temp: -5 }), "always").weather, "snowing")
+  assert.equal(Model.skyFromForecast(sky(3, [3, 3], { temp: 0 }), "always").weather, "snowing")
+  assert.deepEqual(Model.skyFromForecast(sky(3, [71, 3], { temp: 1 }), "showers"), { weather: "snowing", label: "Cloudy, flurries nearby" })
+
+  // Clear skies and real rain or snow don't depend on the setting.
+  for (const mode of ["sunny", "showers", "always"]) {
+    assert.equal(Model.skyFromForecast(sky(0, [61, 61]), mode).weather, "sunny")
+    assert.equal(Model.skyFromForecast(sky(2, [61, 61]), mode).weather, "sunny")
+    assert.equal(Model.skyFromForecast(sky(61, [3, 3]), mode).weather, "raining")
+    assert.equal(Model.skyFromForecast(sky(71, [3, 3]), mode).weather, "snowing")
+  }
+  // A short answer without hourly data still works.
+  assert.equal(Model.skyFromForecast({ current: { weather_code: 3 } }, "showers").weather, "sunny")
+  assert.equal(Model.normalizeConfig({}).cloudy, "showers")
+  assert.equal(Model.normalizeConfig({ cloudy: "hail" }).cloudy, "showers")
+})
+
+test("Random skips GameCube in the rain unless switched off", () => {
+  const c = Model.normalizeConfig({ game: "random" })
+  assert.equal(c.skipGCRain, true)
+  for (let h = 0; h < 24; h++) assert.ok(!Model.allowedGames(c, h, "raining").includes("animal-crossing"))
+  for (const w of ["sunny", "snowing"]) assert.ok(Model.allowedGames(c, 11, w).includes("animal-crossing"))
+
+  // An hour with only GameCube ticked still has rain music to play.
+  const only = Model.normalizeConfig({ game: "random", hours: { sunny: flatGrid({ 11: ["animal-crossing"] }), raining: flatGrid({ 11: [] }) } })
+  assert.deepEqual(Model.allowedGames(only, 11, "raining"), ["wild-world", "new-leaf", "new-horizons"])
+
+  // Daily mode can't land on it either, and picking it by hand still plays it.
+  const daily = Object.assign({}, c, { randomMode: "daily" })
+  for (let d = 1; d <= 60; d++) assert.notEqual(Model.pickGame(daily, "2026-11-" + d, 11, 0, 0, "raining"), "animal-crossing")
+  assert.equal(Model.pickGame(Object.assign({}, c, { game: "animal-crossing" }), "2026-11-2", 11, 0, 0, "raining"), "animal-crossing")
+
+  // Off: its rain column follows the sunny grid again.
+  const off = Model.normalizeConfig({ game: "random", skipGCRain: false, hours: { sunny: flatGrid({ 11: ["new-leaf"] }) } })
+  assert.ok(Model.allowedGames(off, 10, "raining").includes("animal-crossing"))
+  assert.ok(!Model.allowedGames(off, 11, "raining").includes("animal-crossing"))
+})
+
+test("Shuffle always lands on a different game when there's a choice", () => {
+  for (const randomMode of ["hourly", "daily", "interval"]) {
+    const c = Model.normalizeConfig({ game: "random", randomMode, shuffleMinutes: 15 })
+    for (let h = 0; h < 24; h++) {
+      for (let salt = 0; salt < 8; salt++) {
+        const before = Model.pickGame(c, "2026-11-2", h, salt, 1, "raining")
+        const next = Model.differentSalt(c, "2026-11-2", h, salt, 1, "raining")
+        assert.ok(next > salt)
+        assert.notEqual(Model.pickGame(c, "2026-11-2", h, next, 1, "raining"), before)
+      }
+    }
+  }
+  // K.K. from the grid can always make way for a game.
+  const kk = Model.normalizeConfig({ game: "random", hours: { sunny: flatGrid({ 11: ["kk", "new-leaf"] }) } })
+  for (let salt = 0; salt < 8; salt++) {
+    if (Model.pickGame(kk, "d", 11, salt, 0, "sunny") !== "kk") continue
+    assert.equal(Model.pickGame(kk, "d", 11, Model.differentSalt(kk, "d", 11, salt, 0, "sunny"), 0, "sunny"), "new-leaf")
+  }
+  // Only one choice: it moves on without looping forever.
+  const one = Model.normalizeConfig({ game: "random", hours: { sunny: flatGrid({ 11: ["new-leaf"] }) } })
+  assert.equal(Model.differentSalt(one, "d", 11, 3, 0, "sunny"), 4)
+})
+
+test("the system timezone gives a city to look up", () => {
+  assert.equal(Model.cityFromTimezone("America/Winnipeg\n"), "Winnipeg")
+  assert.equal(Model.cityFromTimezone("America/Argentina/Buenos_Aires"), "Buenos Aires")
+  assert.equal(Model.cityFromTimezone("UTC"), "")
+  assert.equal(Model.cityFromTimezone(""), "")
+})
+
 test("track, cover, and cache paths", () => {
   assert.equal(Model.hourlyUrl("new-leaf", "raining", 0), "https://acmusicext.com/static/new-leaf/raining/12am.ogg")
   assert.equal(Model.hourlyUrl("new-leaf", "sunny", 13), "https://acmusicext.com/static/new-leaf/sunny/1pm.ogg")

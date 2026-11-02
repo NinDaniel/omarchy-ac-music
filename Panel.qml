@@ -78,7 +78,7 @@ Panel {
     if (cfg.weather !== "auto") return "Weather locked to " + Model.weatherName(cfg.weather).toLowerCase()
     if (!svc.liveWeather) return "Checking the weather…"
     var place = svc.weatherPlace ? " in " + svc.weatherPlace : ""
-    var text = Model.weatherName(svc.liveWeather) + place
+    var text = svc.sky.label + place
     if (svc.game === "animal-crossing" && svc.liveWeather === "raining" && !svc.kkActive)
       text += " (the GameCube game has no rain music)"
     return text
@@ -346,18 +346,34 @@ Panel {
             width: parent.width
             height: settingsButton.implicitHeight
 
-            Button {
-              readonly property string mode: !root.svc ? "" : (root.svc.betweenActive ? "between" : (root.svc.kkActive ? "kk" : (root.cfg.game === "random" ? "shuffle" : "")))
-              visible: mode !== ""
+            Row {
               anchors.left: parent.left
-              bordered: true
-              iconText: mode === "shuffle" ? root.iconShuffle : root.iconSkip
-              text: mode === "between" ? "Skip to the hour" : (mode === "kk" ? "Next song" : "Shuffle game")
-              tooltipText: mode === "between" ? "Skip K.K. and start this hour's music"
-                : (mode === "kk" ? "Skip to another K.K. song" : "Pick a different game for this hour")
-              foreground: root.foreground
-              fontFamily: root.fontFamily
-              onClicked: root.svc.next()
+              spacing: Style.space(6)
+
+              Button {
+                readonly property string mode: !root.svc ? "" : (root.svc.betweenActive ? "between" : (root.svc.kkActive ? "kk" : (root.cfg.game === "random" ? "shuffle" : "")))
+                visible: mode !== ""
+                bordered: true
+                iconText: mode === "shuffle" ? root.iconShuffle : root.iconSkip
+                text: mode === "between" ? "Skip to the hour" : (mode === "kk" ? "Next song" : "Shuffle game")
+                tooltipText: mode === "between" ? "Skip K.K. and start this hour's music"
+                  : (mode === "kk" ? "Skip to another K.K. song" : "Pick a different game for this hour")
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                onClicked: root.svc.next()
+              }
+
+              // K.K. from the Random grid can also make way for a game.
+              Button {
+                visible: !!root.svc && root.svc.canShuffleKK
+                bordered: true
+                iconText: root.iconShuffle
+                text: "Shuffle"
+                tooltipText: "Pick a different game for this hour"
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                onClicked: root.svc.shuffleGame()
+              }
             }
 
             Button {

@@ -34,7 +34,10 @@ Item {
   readonly property string day: Model.dateKey(now)
 
   // ---- Weather ----
-  property string liveWeather: ""
+  // The latest Open-Meteo answer; settings apply to it without a new request.
+  property var forecast: null
+  readonly property var sky: forecast ? Model.skyFromForecast(forecast, config.cloudy) : null
+  readonly property string liveWeather: sky ? sky.weather : ""
   property string weatherPlace: ""
   property var location: ({ name: "", latitude: null, longitude: null })
   property var resolvedCoords: null
@@ -65,6 +68,9 @@ Item {
   // K.K. by schedule (always or a concert), or picked from the hourly grid.
   readonly property bool kkScheduled: Model.isKKTime(config, now)
   readonly property bool kkActive: kkScheduled || game === Model.KK_ID
+  // K.K. came from the Random grid and the hour allows something else.
+  readonly property bool canShuffleKK: game === Model.KK_ID && !kkScheduled
+    && Model.allowedGames(config, hour, weather).length > 1
   // Hour that opens with one K.K. song before its own music (between-hours).
   property int betweenHour: -1
   readonly property bool betweenActive: betweenHour === hour && !kkActive
@@ -214,7 +220,13 @@ Item {
   function next() {
     if (betweenActive) endBetween()
     else if (kkActive) playNextKK()
-    else if (config.game === "random") salt++
+    else if (config.game === "random") shuffleGame()
+  }
+
+  // Random: move to a different game for this hour.
+  function shuffleGame() {
+    if (config.game !== "random" || kkScheduled || betweenActive) return
+    salt = Model.differentSalt(config, day, hour, salt, slot, weather)
   }
 
   function endBetween() {
@@ -947,7 +959,7 @@ Item {
     if (forecastProc.running) return
     forecastProc.place = place
     forecastProc.command = ["curl", "-fsS", "--max-time", "10",
-      "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&current=weather_code&timezone=auto"]
+      "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&current=weather_code,temperature_2m&hourly=weather_code,precipitation&past_hours=2&forecast_hours=2&timezone=auto"]
     forecastProc.running = true
   }
 
@@ -965,6 +977,48 @@ Item {
           }
           root.resolvedFor = geoProc.query
           root.fetchForecast(root.resolvedCoords.latitude, root.resolvedCoords.longitude, root.resolvedCoords.name)
+        } catch (e) {
+          root.locateByName()
+        }
+      }
+    }
+  }
+
+  // wttr.in can be down. Look the place up with Open-Meteo instead, by the name
+  // Omarchy has or else the system timezone's city.
+  function locateByName() {
+    if (location.name) geocode(location.name.split(",")[0])
+    else if (!timezoneProc.running) timezoneProc.running = true
+  }
+
+  function geocode(name) {
+    if (!name || geocodeProc.running) return
+    geocodeProc.command = ["curl", "-fsS", "--max-time", "10",
+      "https://geocoding-api.open-meteo.com/v1/search?count=1&format=json&name=" + encodeURIComponent(name)]
+    geocodeProc.running = true
+  }
+
+  Process {
+    id: timezoneProc
+    command: ["timedatectl", "show", "-p", "Timezone", "--value"]
+    stdout: StdioCollector {
+      onStreamFinished: root.geocode(Model.cityFromTimezone(text))
+    }
+  }
+
+  Process {
+    id: geocodeProc
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          var place = JSON.parse(text).results[0]
+          root.resolvedCoords = {
+            latitude: place.latitude,
+            longitude: place.longitude,
+            name: root.location.name || place.name
+          }
+          root.resolvedFor = root.location.name
+          root.fetchForecast(place.latitude, place.longitude, root.resolvedCoords.name)
         } catch (e) {}
       }
     }
@@ -977,7 +1031,8 @@ Item {
       onStreamFinished: {
         try {
           var data = JSON.parse(text)
-          root.liveWeather = Model.weatherFromWmo(data.current.weather_code)
+          if (!data.current) return
+          root.forecast = data
           root.weatherPlace = forecastProc.place
         } catch (e) {}
       }
@@ -993,6 +1048,7 @@ Item {
     function play(): string { root.setPlaying(true); return "playing" }
     function pause(): string { root.setPlaying(false); return "paused" }
     function next(): string { root.next(); return "ok" }
+    function shuffle(): string { root.shuffleGame(); return "ok" }
     function sleep(arg: string): string {
       if (arg === "off" || arg === "0") root.setSleep(0)
       else if (arg === "hour") root.setSleep(-1)

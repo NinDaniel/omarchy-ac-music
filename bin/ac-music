@@ -10,6 +10,7 @@ Usage: ac-music <command> [arg]
 
   toggle | play | pause     Start or stop the music
   next                      Shuffle to another game (Random) or skip a K.K. song
+  shuffle                   Shuffle to another game, even during K.K. from the grid
   status                    Show what's playing
   game <id>                 animal-crossing, wild-world, new-leaf, new-horizons, random
   weather <mode>            auto, sunny, rain, snow
@@ -24,7 +25,7 @@ USAGE
 
 cmd=${1:-}
 case $cmd in
-  toggle | play | pause | next | status)
+  toggle | play | pause | next | shuffle | status)
     exec omarchy-shell io.github.nindaniel.ac-music "$cmd" ;;
   game | weather | volume)
     [[ -n ${2:-} ]] || { usage; exit 1; }

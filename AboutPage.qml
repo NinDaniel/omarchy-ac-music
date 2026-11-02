@@ -32,6 +32,40 @@ Column {
     font.pixelSize: Style.font.bodySmall
   }
 
+  PanelSectionHeader { text: "CLOUDY SKIES COUNT AS"; foreground: page.p.foreground; fontFamily: page.p.fontFamily }
+
+  ButtonGroup {
+    spacing: Style.space(6)
+    value: page.p.cfg.cloudy
+    foreground: page.p.foreground
+    fontFamily: page.p.fontFamily
+    focusable: false
+    options: [
+      { value: "sunny", label: "Sunny", tooltip: "Only actual rain or snow changes the music" },
+      { value: "showers", label: "Rain if showery", tooltip: "Rain music when an overcast sky has showers around" },
+      { value: "always", label: "Always rain", tooltip: "Rain music whenever it's overcast or foggy" }
+    ]
+    onChanged: function(v) { page.p.svc.update({ cloudy: v }) }
+  }
+
+  Text {
+    width: parent.width
+    text: {
+      var cfg = page.p.cfg
+      var caption = cfg.cloudy === "sunny" ? "Overcast and foggy skies play the sunny music."
+        : (cfg.cloudy === "showers"
+          ? "An overcast sky counts as rain if it rained in the last two hours or is about to, so on-and-off showers don't keep switching the music."
+          : "Every overcast or foggy sky counts as rain.")
+      if (cfg.cloudy !== "sunny") caption += " It counts as snow instead when it's freezing."
+      if (cfg.weather !== "auto") caption += " This only applies when Weather is on Auto."
+      return caption
+    }
+    color: page.p.dim
+    wrapMode: Text.WordWrap
+    font.family: page.p.fontFamily
+    font.pixelSize: Style.font.bodySmall
+  }
+
   PanelSectionHeader { text: "ABOUT"; foreground: page.p.foreground; fontFamily: page.p.fontFamily }
 
   Text {

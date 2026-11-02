@@ -81,14 +81,17 @@ Column {
     HourTable { p: page.p; weatherId: page.gridWeather; firstHour: 12; width: (parent.width - parent.spacing) / 2 }
   }
 
-  Text {
+  Toggle {
     visible: page.gridWeather === "raining"
     width: parent.width
-    text: "GameCube has no rain music, so on rainy days it follows your Sunny grid. Its column here just shows that."
-    color: page.p.dim
-    wrapMode: Text.WordWrap
-    font.family: page.p.fontFamily
-    font.pixelSize: Style.font.bodySmall
+    label: "Skip GameCube in the rain"
+    description: page.p.cfg.skipGCRain
+      ? "GameCube has no rain music, so Random leaves it out on rainy days"
+      : "GameCube has no rain music, so on rainy days it plays its sunny theme, following your Sunny grid"
+    checked: page.p.cfg.skipGCRain
+    foreground: page.p.foreground
+    fontFamily: page.p.fontFamily
+    onClicked: page.p.svc.update({ skipGCRain: !page.p.cfg.skipGCRain })
   }
 
   Button {

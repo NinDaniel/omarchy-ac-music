@@ -107,7 +107,8 @@ From top to bottom:
 - **Game:** **GC** (Animal Crossing on GameCube), **WW** (Wild World / City Folk), **NL** (New Leaf), **NH** (New Horizons), or **Random**. Hover a button for the full name. Picking a specific game always plays that game; the per-hour grid only applies to Random.
 - **Weather:** **Auto** follows the real weather. **Sunny**, **Rain**, and **Snow** lock it. On Auto, the line underneath shows the current conditions and where they're from.
 - **On hold:** when another player is playing, a line explains that the music is paused (or quieter) and will come back on its own.
-- **Shuffle game / Next song / Skip to the hour:** shows when it's useful. On Random it rolls a different game for now. During K.K. it skips to another song. During a between-hours song it skips straight to the hour's music.
+- **Shuffle game / Next song / Skip to the hour:** shows when it's useful. On Random it switches to a different game for now. During K.K. it skips to another song. During a between-hours song it skips straight to the hour's music.
+- **Shuffle:** appears beside **Next song** when Random picked K.K. for this hour, and switches to one of the hour's games instead. Concerts and K.K. all the time only offer **Next song**, since they're on a schedule.
 - **Settings:** opens the settings menu (see below).
 
 **Keyboard**, while the panel is open:
@@ -181,11 +182,16 @@ just a few ticks on the Rain tab. It works with every Random mode: **Once a day*
 can land on a K.K. day, and **Every few minutes** treats him as one of the
 hour's slots, for example New Leaf, then fifteen minutes of K.K., then Wild World.
 
-**GameCube on the Rain tab.** The original GameCube game has no rain music, so
-on rainy days it plays its sunny theme. Its `GC` column on the Rain tab is
-greyed out and simply shows your **Sunny** ticks, which is what decides it.
-Untick GameCube's sunny 11 AM and it won't play at 11 AM on rainy days either.
-(GameCube does have snow music, so its Snow column works normally.)
+**GameCube in the rain.** The original GameCube game has no rain music, so
+**Skip GameCube in the rain**, under the Rain tab's grid, leaves it out of Random
+on rainy days. The other games fill in, even in an hour where GameCube is the
+only one ticked. Its `GC` column on the Rain tab is greyed out and empty.
+
+Switch that off and GameCube plays its sunny theme in the rain. The column then
+shows your **Sunny** ticks, which is what decides it: untick GameCube's sunny
+11 AM and it won't play at 11 AM on rainy days either. Picking GameCube yourself
+on the main panel always plays it. (GameCube does have snow music, so its Snow
+column works normally.)
 
 #### Random picks
 
@@ -202,7 +208,7 @@ Details worth knowing:
 - Picks are **stable**. The game is worked out from the date and hour, so restarting your computer or the shell mid-hour doesn't change what's playing.
 - **Every few minutes** lines up with the clock. At 15 minutes it switches at :00, :15, :30, and :45. With a custom interval that doesn't divide the hour, like 7 minutes, the last stretch before the hour is shorter, and the hour change always starts fresh.
 - Each hour gets its own shuffled order of games. Every switch lands on a **different** game, and all of the hour's ticked games play before any repeat. If only one game is ticked for an hour, it simply stays on that game.
-- **Shuffle game** (or a middle click) rolls a new pick or a new order. That lasts until the next hour.
+- **Shuffle game** (or a middle click) moves to a different game and a new order. That lasts until the next hour.
 - When the weather changes, Random switches to the grid for the new weather straight away.
 
 ### K.K. Slider
@@ -376,14 +382,27 @@ downloaded to a temporary file first, so a cut-off download is never played.
 
 **Weather location.** Auto weather uses the location set in **Omarchy's
 weather widget**. If you haven't set one, the plugin works out your location the
-same way that widget does (from your IP address). To change it, set a location
+same way that widget does (from your IP address), or from your system timezone's
+city if that service is down. To change it, set a location
 in the weather widget and the music follows along; there's nothing to configure
 here.
 
 The weather is checked when the plugin starts and every 20 minutes after that.
 Rain covers drizzle, rain, freezing rain, showers, and thunderstorms. Snow covers
-snowfall, snow grains, and snow showers. Everything else, cloudy and foggy
-included, counts as sunny.
+snowfall, snow grains, and snow showers. Clear and partly cloudy skies count as
+sunny.
+
+**Cloudy skies count as.** What to do when it's overcast or foggy:
+
+| Option            | What it does |
+|-------------------|--------------|
+| **Sunny**         | Sunny music until rain or snow is actually falling. |
+| **Rain if showery** | Rain music if it rained in the last two hours or rain is expected within the next hour, so on-and-off showers don't keep switching the music. Otherwise sunny. The default. |
+| **Always rain**   | Rain music whenever it's overcast or foggy. |
+
+The last two play snow music instead when it's freezing, or when the nearby
+hours are snowy. The line under the Weather buttons on the main panel shows how
+the sky is being read, like "Cloudy, showers nearby".
 
 **About.** The plugin's version, credits, and links to this repository and the
 Animal Crossing Music extension. Links open in your browser.
@@ -402,6 +421,7 @@ ln -s ~/.config/omarchy/plugins/io.github.nindaniel.ac-music/bin/ac-music ~/.loc
 | `ac-music play`            | Play |
 | `ac-music pause`           | Pause |
 | `ac-music next`            | Shuffle game (Random), next K.K. song, or skip a between-hours song |
+| `ac-music shuffle`         | Switch to a different game (Random), including when Random picked K.K. |
 | `ac-music status`          | Print what's playing, e.g. `Playing: New Leaf - 11 AM · Raining` |
 | `ac-music game <game>`     | `animal-crossing`, `wild-world`, `new-leaf`, `new-horizons`, or `random` |
 | `ac-music weather <mode>`  | `auto`, `sunny`, `rain`, or `snow` |
@@ -435,6 +455,8 @@ Anything missing or invalid falls back to its default.
 | `volume`         | `0` to `1` | `0.5` |
 | `game`           | `animal-crossing`, `wild-world`, `new-leaf`, `new-horizons`, `random` | `new-horizons` |
 | `weather`        | `auto`, `sunny`, `raining`, `snowing` | `auto` |
+| `cloudy`         | what overcast and foggy skies count as on Auto: `sunny`, `showers`, `always` | `showers` |
+| `skipGCRain`     | `true` / `false` (leave GameCube out of Random in the rain) | `true` |
 | `randomMode`     | `hourly`, `daily`, `interval` | `hourly` |
 | `shuffleMinutes` | `1` to `60` (used by `interval`) | `15` |
 | `hours`          | `sunny`, `raining`, `snowing`, each with `"0"` to `"23"` mapped to a list of allowed games (and `"kk"`) | the four games, every hour, every weather |
@@ -524,10 +546,12 @@ The plugin talks to three services:
   hourly, at every switch in *Every few minutes* mode, once per K.K. song, and
   once per preview. Loops always replay from memory. K.K. album covers (about
   20 KB each) load when the panel shows them.
-- **api.open-meteo.com:** current weather for your coordinates, every 20 minutes,
-  only while Weather is on *Auto*.
+- **api.open-meteo.com:** current weather and the nearby hours' forecast for your
+  coordinates, every 20 minutes, only while Weather is on *Auto*.
 - **wttr.in:** only when Omarchy's weather widget has no location set, to work
   out roughly where you are (the same thing the weather widget does).
+- **geocoding-api.open-meteo.com:** only if wttr.in can't be reached, to look up
+  the coordinates of your location's name or your system timezone's city.
 
 There's no account, no analytics, and nothing is sent anywhere else.
 

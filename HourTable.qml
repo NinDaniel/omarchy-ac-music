@@ -6,7 +6,7 @@ import "Model.js" as Model
 // Twelve hours of checkboxes for one weather's grid: the four games plus K.K.
 // Clicking an hour flips its row; clicking a heading flips that column (these
 // twelve hours only). On the Rain tab the GameCube column is read-only: that
-// game has no rain music, so it follows the Sunny grid.
+// game has no rain music, so it's either skipped or follows the Sunny grid.
 Column {
   id: table
 
@@ -27,7 +27,7 @@ Column {
   }
 
   function isTicked(hour, id) {
-    return Model.ticked(table.p.cfg, weatherId, hour, id)
+    return !Model.skippedInWeather(table.p.cfg, weatherId, id) && Model.ticked(table.p.cfg, weatherId, hour, id)
   }
 
   // Columns a row click flips (everything except a mirrored column).
@@ -68,9 +68,9 @@ Column {
 
         PanelToolTip {
           visible: headerMouse.containsMouse
-          text: heading.mirrored
-            ? "GameCube has no rain music, so on rainy days it follows your Sunny grid"
-            : heading.modelData.tooltip
+          text: !heading.mirrored ? heading.modelData.tooltip
+            : (table.p.cfg.skipGCRain ? "GameCube has no rain music, so it's skipped on rainy days"
+              : "GameCube has no rain music, so on rainy days it follows your Sunny grid")
         }
       }
     }
