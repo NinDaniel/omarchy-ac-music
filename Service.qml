@@ -145,9 +145,14 @@ Item {
   Component.onCompleted: {
     AcBridge.Bridge.service = root
     rescanCache()
+    staleMpvProc.running = true
   }
   Component.onDestruction: {
     if (AcBridge.Bridge.service === root) AcBridge.Bridge.service = null
+    // Setting running to false isn't enough while the shell tears down a
+    // whole scene (as it does when every monitor disconnects), so kill mpv
+    // by pid too.
+    if (mpvProc.processId) Quickshell.execDetached(["kill", String(mpvProc.processId)])
     mpvProc.running = false
   }
 
@@ -633,7 +638,11 @@ Item {
   }
 
   function ensureMpv() {
-    if (mpvProc.running) return
+    if (mpvProc.running || staleMpvProc.running) return
+    if (!staleMpvCleared) {
+      staleMpvProc.running = true
+      return
+    }
     mpvReady = false
     appliedVolume = -1
     loadedKey = ""
@@ -858,6 +867,18 @@ Item {
         // Crashed or killed while we still want music: start it back up.
         if (root.playing && root.configLoaded) restartMpv.start()
       }
+    }
+  }
+
+  // An earlier copy of this service can leave its mpv playing with nobody to
+  // control it. Stop any mpv on our socket before starting our own.
+  property bool staleMpvCleared: false
+  Process {
+    id: staleMpvProc
+    command: ["pkill", "-f", "--", "--input-ipc-server=" + root.socketPath]
+    onExited: {
+      root.staleMpvCleared = true
+      root.ensureMpv()
     }
   }
 
