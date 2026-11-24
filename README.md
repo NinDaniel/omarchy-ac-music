@@ -392,6 +392,22 @@ Rain covers drizzle, rain, freezing rain, showers, and thunderstorms. Snow cover
 snowfall, snow grains, and snow showers. Clear and partly cloudy skies count as
 sunny.
 
+**Weather source.** Where the weather comes from on Auto:
+
+| Option                  | What it does |
+|-------------------------|--------------|
+| **Forecast**            | Open-Meteo's weather forecast. The default. |
+| **Forecast + airports** | Also checks what airports within 50 km report falling right now. If one reports rain or snow, you get the rain or snow music even when the forecast says it's dry. |
+
+Forecasts are good at real rainstorms but can miss light rain and drizzle
+completely, leaving you with sunny music on a wet grey day. Airports report what
+is actually falling every hour, plus an extra report as soon as it starts
+raining, and the plugin checks them every 10 minutes, so turning them on fixes
+that. If no airport has
+reported within 50 km in the last 75 minutes, or none of them report rain or
+snow, the forecast decides as usual. When an airport's report is in charge, the
+line under the Weather buttons says so, like "Drizzle at Seattle-Tacoma Intl Arpt".
+
 **Cloudy skies count as.** What to do when it's overcast or foggy:
 
 | Option            | What it does |
@@ -456,6 +472,7 @@ Anything missing or invalid falls back to its default.
 | `game`           | `animal-crossing`, `wild-world`, `new-leaf`, `new-horizons`, `random` | `new-horizons` |
 | `weather`        | `auto`, `sunny`, `raining`, `snowing` | `auto` |
 | `cloudy`         | what overcast and foggy skies count as on Auto: `sunny`, `showers`, `always` | `showers` |
+| `weatherSource`  | where Auto weather comes from: `forecast`, `airport` (forecast plus nearby airport reports) | `forecast` |
 | `skipGCRain`     | `true` / `false` (leave GameCube out of Random in the rain) | `true` |
 | `randomMode`     | `hourly`, `daily`, `interval` | `hourly` |
 | `shuffleMinutes` | `1` to `60` (used by `interval`) | `15` |
@@ -536,7 +553,7 @@ player Omarchy considers active. Pause the other player, or use
 
 ## Network and privacy
 
-The plugin talks to three services:
+The plugin talks to these services:
 
 - **acmusicext.com:** the music itself, one song (usually 3 to 7 MB) at a time.
   With the [song cache](#song-cache) on, each song downloads once and replays
@@ -552,6 +569,9 @@ The plugin talks to three services:
   out roughly where you are (the same thing the weather widget does).
 - **geocoding-api.open-meteo.com:** only if wttr.in can't be reached, to look up
   the coordinates of your location's name or your system timezone's city.
+- **aviationweather.gov:** only with Weather source set to *Forecast +
+  airports*, every 10 minutes while Weather is on *Auto*. It asks for the
+  latest reports from airports in a box about 50 km around your coordinates.
 
 There's no account, no analytics, and nothing is sent anywhere else.
 

@@ -356,3 +356,64 @@ test("K.K. songs show their New Horizons names; search ignores accents and finds
   const ac = Data.kkSongs.filter(s => Model.kkGroup(s) === "AC").sort(Model.byKKTitle).map(Model.kkTitle)
   assert.ok(ac.indexOf("K.K. Mariachi") > ac.indexOf("K.K. Lullaby") && ac.indexOf("K.K. Mariachi") < ac.indexOf("K.K. Parade"))
 })
+
+test("Airport weather strings mean rain, snow or nothing", () => {
+  const w = (wx, temp = 8) => Model.metarPrecip(wx, temp)
+  assert.deepEqual(w("-DZ BR"), { weather: "raining", label: "Drizzle" })
+  assert.deepEqual(w("-RA BR"), { weather: "raining", label: "Rain" })
+  assert.deepEqual(w("+TSRA"), { weather: "raining", label: "Thunderstorm" })
+  assert.deepEqual(w("-SHRA"), { weather: "raining", label: "Rain" })
+  assert.deepEqual(w("FZDZ", -2), { weather: "raining", label: "Drizzle" })
+  assert.deepEqual(w("-SN", -4), { weather: "snowing", label: "Snow" })
+  assert.deepEqual(w("PL", 0), { weather: "snowing", label: "Sleet" })
+  // Rain and snow together: snow only near freezing.
+  assert.equal(w("-RASN", 1).weather, "snowing")
+  assert.equal(w("-RASN", 3).weather, "raining")
+  // Unknown precipitation goes by temperature.
+  assert.equal(w("UP", -1).weather, "snowing")
+  assert.equal(w("UP", 2).weather, "raining")
+  // Mist, haze and showers in the vicinity aren't falling here.
+  for (const dry of ["BR", "HZ FU", "VCSH", "VCTS", "", null, undefined]) assert.equal(w(dry).weather, "")
+})
+
+test("Nearby recent airport reports override a dry forecast", () => {
+  // A drizzly day: drizzle at the airport while the forecast says overcast and dry.
+  const now = Date.parse("2026-11-18T16:20:00Z")
+  const at = (iso) => Date.parse(iso) / 1000
+  const report = (o) => Object.assign({ icaoId: "KSEA", name: "Seattle-Tacoma Intl Arpt, WA, US", lat: 47.449, lon: -122.309, temp: 8 }, o)
+  const downtown = { icaoId: "KBFI", name: "Seattle/Boeing Field, WA, US", lat: 47.53, lon: -122.302, temp: 8, obsTime: at("2026-11-18T16:00:00Z") }
+  const home = [47.6062, -122.3321]
+
+  const wet = [downtown, report({ obsTime: at("2026-11-18T16:00:00Z"), wxString: "-DZ BR" })]
+  assert.deepEqual(Model.metarSky(wet, ...home, now), { weather: "raining", label: "Drizzle", station: "Seattle-Tacoma Intl Arpt" })
+
+  const dry = [downtown, report({ obsTime: at("2026-11-18T16:00:00Z") })]
+  assert.deepEqual(Model.metarSky(dry, ...home, now), { weather: "", label: "", station: "Seattle/Boeing Field" })
+
+  // On-and-off drizzle doesn't flip the music: a dry report after a wet one
+  // still counts as wet until the wet one is 75 minutes old.
+  const patchy = [report({ obsTime: at("2026-11-18T15:16:00Z"), wxString: "-DZ" }), report({ obsTime: at("2026-11-18T16:00:00Z") })]
+  assert.equal(Model.metarSky(patchy, ...home, now).weather, "raining")
+  assert.equal(Model.metarSky(patchy, ...home, Date.parse("2026-11-18T16:30:00Z")).weather, "raining")
+  assert.equal(Model.metarSky(patchy, ...home, Date.parse("2026-11-18T16:32:00Z")).weather, "")
+
+  // Too old, too far, or nothing at all: no airport picture.
+  assert.equal(Model.metarSky(wet, ...home, now + 2 * 3600000), null)
+  assert.equal(Model.metarSky(wet, 45.5, -73.6, now), null)
+  assert.equal(Model.metarSky([], ...home, now), null)
+  assert.equal(Model.metarSky(null, ...home, now), null)
+  assert.equal(Model.metarSky(wet, null, null, now), null)
+
+  // Wet airport beats the forecast; a dry or missing one leaves it alone.
+  const overcast = Model.skyFromForecast({ current: { weather_code: 3, temperature_2m: 9 }, hourly: { weather_code: [3, 3, 3, 3], precipitation: [0, 0, 0, 0] } }, "showers")
+  assert.equal(overcast.weather, "sunny")
+  assert.equal(Model.pickSky(overcast, Model.metarSky(wet, ...home, now)).weather, "raining")
+  assert.deepEqual(Model.pickSky(overcast, Model.metarSky(dry, ...home, now)), overcast)
+  assert.deepEqual(Model.pickSky(overcast, null), overcast)
+
+  // The search box covers the radius, and the setting defaults to the forecast.
+  assert.equal(Model.metarBox(47.6062, -122.3321), "47.106,-123.074,48.106,-121.591")
+  assert.equal(Model.normalizeConfig({}).weatherSource, "forecast")
+  assert.equal(Model.normalizeConfig({ weatherSource: "radar" }).weatherSource, "forecast")
+  assert.equal(Model.normalizeConfig({ weatherSource: "airport" }).weatherSource, "airport")
+})

@@ -36,7 +36,14 @@ Item {
   // ---- Weather ----
   // The latest Open-Meteo answer; settings apply to it without a new request.
   property var forecast: null
-  readonly property var sky: forecast ? Model.skyFromForecast(forecast, config.cloudy) : null
+  readonly property var forecastSky: forecast ? Model.skyFromForecast(forecast, config.cloudy) : null
+  // Airport reports (opt-in): rain or snow reported nearby beats the forecast.
+  readonly property bool airportWeather: config.weatherSource === "airport"
+  property var metars: null
+  property var metarCoords: null
+  readonly property var airportSky: airportWeather && metars && metarCoords
+    ? Model.metarSky(metars, metarCoords.latitude, metarCoords.longitude, now.getTime()) : null
+  readonly property var sky: Model.pickSky(forecastSky, airportSky)
   readonly property string liveWeather: sky ? sky.weather : ""
   property string weatherPlace: ""
   property var location: ({ name: "", latitude: null, longitude: null })
@@ -953,6 +960,10 @@ Item {
   // the first lookup.
   onLocationChanged: refreshWeather()
   onAutoWeatherChanged: refreshWeather()
+  onAirportWeatherChanged: {
+    metars = null
+    refreshWeather()
+  }
 
   Timer {
     interval: 20 * 60 * 1000
@@ -976,7 +987,11 @@ Item {
     }
   }
 
+  // Lookups already under way can finish after Weather leaves Auto; drop them
+  // then instead of sending the location anywhere.
   function fetchForecast(lat, lon, place) {
+    if (!autoWeather) return
+    if (airportWeather) fetchMetars(lat, lon)
     if (forecastProc.running) return
     forecastProc.place = place
     forecastProc.command = ["curl", "-fsS", "--max-time", "10",
@@ -1008,12 +1023,13 @@ Item {
   // wttr.in can be down. Look the place up with Open-Meteo instead, by the name
   // Omarchy has or else the system timezone's city.
   function locateByName() {
+    if (!autoWeather) return
     if (location.name) geocode(location.name.split(",")[0])
     else if (!timezoneProc.running) timezoneProc.running = true
   }
 
   function geocode(name) {
-    if (!name || geocodeProc.running) return
+    if (!autoWeather || !name || geocodeProc.running) return
     geocodeProc.command = ["curl", "-fsS", "--max-time", "10",
       "https://geocoding-api.open-meteo.com/v1/search?count=1&format=json&name=" + encodeURIComponent(name)]
     geocodeProc.running = true
@@ -1040,6 +1056,38 @@ Item {
           }
           root.resolvedFor = root.location.name
           root.fetchForecast(place.latitude, place.longitude, root.resolvedCoords.name)
+        } catch (e) {}
+      }
+    }
+  }
+
+  // Airports file an extra report as soon as rain starts, so check them more
+  // often than the forecast.
+  Timer {
+    interval: 10 * 60 * 1000
+    running: root.autoWeather && root.airportWeather && root.metarCoords !== null
+    repeat: true
+    onTriggered: root.fetchMetars(root.metarCoords.latitude, root.metarCoords.longitude)
+  }
+
+  function fetchMetars(lat, lon) {
+    if (!autoWeather || !airportWeather || metarProc.running) return
+    metarProc.coords = { latitude: lat, longitude: lon }
+    metarProc.command = ["curl", "-fsS", "--max-time", "10",
+      "https://aviationweather.gov/api/data/metar?format=json&hours=2&bbox=" + Model.metarBox(lat, lon)]
+    metarProc.running = true
+  }
+
+  Process {
+    id: metarProc
+    property var coords: null
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          var data = JSON.parse(text)
+          if (!Array.isArray(data) || !root.airportWeather) return
+          root.metars = data
+          root.metarCoords = metarProc.coords
         } catch (e) {}
       }
     }

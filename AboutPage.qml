@@ -32,6 +32,46 @@ Column {
     font.pixelSize: Style.font.bodySmall
   }
 
+  PanelSectionHeader { text: "WEATHER SOURCE"; foreground: page.p.foreground; fontFamily: page.p.fontFamily }
+
+  ButtonGroup {
+    spacing: Style.space(6)
+    value: page.p.cfg.weatherSource
+    foreground: page.p.foreground
+    fontFamily: page.p.fontFamily
+    focusable: false
+    options: [
+      { value: "forecast", label: "Forecast", tooltip: "Open-Meteo's weather forecast only" },
+      { value: "airport", label: "Forecast + airports", tooltip: "Also check what nearby airports report falling right now" }
+    ]
+    onChanged: function(v) { page.p.svc.update({ weatherSource: v }) }
+  }
+
+  Text {
+    width: parent.width
+    text: {
+      var svc = page.p.svc
+      var cfg = page.p.cfg
+      var caption
+      if (cfg.weatherSource !== "airport") {
+        caption = "Follows Open-Meteo's forecast. Light rain and drizzle can slip past it; for more accurate rain, add airport reports."
+      } else {
+        caption = "Rain or snow reported by an airport within 50 km plays the rain or snow music even when the forecast misses it. Sends your rough location to aviationweather.gov."
+        if (svc && svc.metars) {
+          caption += svc.airportSky
+            ? " Nearest report: " + svc.airportSky.station + "."
+            : " No airport has reported within 50 km lately, so it's using the forecast alone."
+        }
+      }
+      if (cfg.weather !== "auto") caption += " This only applies when Weather is on Auto."
+      return caption
+    }
+    color: page.p.dim
+    wrapMode: Text.WordWrap
+    font.family: page.p.fontFamily
+    font.pixelSize: Style.font.bodySmall
+  }
+
   PanelSectionHeader { text: "CLOUDY SKIES COUNT AS"; foreground: page.p.foreground; fontFamily: page.p.fontFamily }
 
   ButtonGroup {

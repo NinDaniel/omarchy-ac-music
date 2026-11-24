@@ -98,6 +98,9 @@ function defaultConfig() {
     // What overcast or foggy skies count as on Auto: "sunny", "showers" (rain
     // or snow only if showers are around), or "always".
     cloudy: "showers",
+    // "forecast" (Open-Meteo only) or "airport" (also nearby airport reports,
+    // which catch rain the forecast misses).
+    weatherSource: "forecast",
     // Random leaves the GameCube game out in the rain (it has no rain music).
     skipGCRain: true,
     // "hourly", "daily", or "interval" (a new game every shuffleMinutes).
@@ -245,6 +248,7 @@ function normalizeConfig(raw) {
     game: pick(c.game, GAME_IDS.concat(["random"]), d.game),
     weather: pick(c.weather, ["auto"].concat(WEATHERS), d.weather),
     cloudy: pick(c.cloudy, ["sunny", "showers", "always"], d.cloudy),
+    weatherSource: pick(c.weatherSource, ["forecast", "airport"], d.weatherSource),
     skipGCRain: bool(c.skipGCRain, d.skipGCRain),
     randomMode: pick(c.randomMode, ["hourly", "daily", "interval"], d.randomMode),
     shuffleMinutes: isNaN(minutes) ? d.shuffleMinutes : Math.max(1, Math.min(60, minutes)),
@@ -641,6 +645,86 @@ function skyFromForecast(data, cloudy) {
     ? "counts as " + (snowy ? "snow" : "rain")
     : (snowy ? "flurries" : "showers") + " nearby"
   return { weather: snowy ? "snowing" : "raining", label: label + ", " + note }
+}
+
+// ---- Airport reports ------------------------------------------------------
+// Airports report what's falling right now (METAR, via aviationweather.gov).
+// Forecast models can miss light rain and drizzle entirely, so a nearby report
+// of rain or snow wins over the forecast. Reports of no rain don't: plenty of
+// automatic stations can't detect it, so the forecast still decides then.
+
+var METAR_RADIUS_KM = 50
+var METAR_MAX_AGE_MIN = 75
+
+function distanceKm(lat1, lon1, lat2, lon2) {
+  var r = Math.PI / 180
+  var a = Math.pow(Math.sin((lat2 - lat1) * r / 2), 2)
+    + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.pow(Math.sin((lon2 - lon1) * r / 2), 2)
+  return 12742 * Math.asin(Math.sqrt(a))
+}
+
+// The area to ask for: a box a little bigger than the search radius.
+function metarBox(lat, lon) {
+  var dLat = 0.5
+  var dLon = Math.min(10, 0.5 / Math.max(0.1, Math.cos(lat * Math.PI / 180)))
+  function f(n) { return n.toFixed(3) }
+  return [f(lat - dLat), f(lon - dLon), f(lat + dLat), f(lon + dLon)].join(",")
+}
+
+var METAR_RAIN = ["DZ", "RA", "GR", "GS", "TS"]
+var METAR_SNOW = ["SN", "SG", "PL", "IC"]
+
+// What a METAR weather string ("-DZ BR", "+TSRA", "-RASN") means here:
+// { weather: "raining" | "snowing" | "", label }. Showers in the vicinity
+// (VCSH) don't count; mist and haze aren't precipitation.
+function metarPrecip(wx, temp) {
+  var rain = "", snow = ""
+  String(wx || "").split(/\s+/).forEach(function(group) {
+    var g = group.replace(/^[-+]/, "")
+    if (g.indexOf("VC") === 0) return
+    for (var i = 0; i + 2 <= g.length; i += 2) {
+      var code = g.substr(i, 2)
+      if (METAR_RAIN.indexOf(code) >= 0 && !rain) rain = code
+      if (METAR_SNOW.indexOf(code) >= 0 && !snow) snow = code
+      if (code === "UP" && !rain && !snow) {
+        if (Number(temp) <= 0) snow = "UP"
+        else rain = "UP"
+      }
+    }
+  })
+  if (!rain && !snow) return { weather: "", label: "" }
+  var snowing = snow && (!rain || Number(temp) <= 1)
+  if (snowing) return { weather: "snowing", label: snow === "SN" || snow === "UP" ? "Snow" : "Sleet" }
+  var names = { DZ: "Drizzle", RA: "Rain", GR: "Hail", GS: "Hail", TS: "Thunderstorm", UP: "Rain" }
+  return { weather: "raining", label: names[rain] }
+}
+
+// The nearby airport picture from an aviationweather.gov METAR list:
+// null when no station is close enough with a recent report, otherwise
+// { weather, label, station } (weather "" when none of them report rain or
+// snow). The nearest wet station names the report.
+function metarSky(reports, lat, lon, nowMs) {
+  if (!Array.isArray(reports) || lat === null || lon === null) return null
+  var recent = reports.filter(function(m) {
+    return m && !isNaN(Number(m.lat)) && !isNaN(Number(m.lon))
+      && nowMs - Number(m.obsTime) * 1000 <= METAR_MAX_AGE_MIN * 60000
+  }).map(function(m) {
+    return { m: m, km: distanceKm(lat, lon, Number(m.lat), Number(m.lon)) }
+  }).filter(function(x) { return x.km <= METAR_RADIUS_KM })
+  if (!recent.length) return null
+  recent.sort(function(a, b) { return a.km - b.km || Number(b.m.obsTime) - Number(a.m.obsTime) })
+  var nearest = String(recent[0].m.name || recent[0].m.icaoId || "").split(",")[0]
+  for (var i = 0; i < recent.length; i++) {
+    var p = metarPrecip(recent[i].m.wxString, recent[i].m.temp)
+    if (p.weather) return { weather: p.weather, label: p.label, station: String(recent[i].m.name || recent[i].m.icaoId || "").split(",")[0] }
+  }
+  return { weather: "", label: "", station: nearest }
+}
+
+// The sky the music follows: rain or snow at a nearby airport, else the forecast.
+function pickSky(forecastSky, airport) {
+  if (airport && airport.weather) return airport
+  return forecastSky
 }
 
 // City to look up from a system timezone: "America/Winnipeg" -> "Winnipeg".

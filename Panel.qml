@@ -78,7 +78,7 @@ Panel {
     if (cfg.weather !== "auto") return "Weather locked to " + Model.weatherName(cfg.weather).toLowerCase()
     if (!svc.liveWeather) return "Checking the weather…"
     var place = svc.weatherPlace ? " in " + svc.weatherPlace : ""
-    var text = svc.sky.label + place
+    var text = svc.sky.station ? svc.sky.label + " at " + svc.sky.station : svc.sky.label + place
     if (svc.game === "animal-crossing" && svc.liveWeather === "raining" && !svc.kkActive)
       text += " (the GameCube game has no rain music)"
     return text
